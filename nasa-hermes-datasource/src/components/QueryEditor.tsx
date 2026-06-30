@@ -3,7 +3,7 @@ import { Combobox, InlineField, Stack } from '@grafana/ui';
 import { QueryEditorProps } from '@grafana/data';
 import type { ComboboxOption } from '@grafana/ui';
 import { DataSource } from '../datasource';
-import { MyDataSourceOptions, MyQuery } from '../types';
+import { MyDataSourceOptions, MyQuery, VALUE_TYPE_OPTIONS, ValueType } from '../types';
 
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>;
 
@@ -110,6 +110,17 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     [onChange, onRunQuery, query]
   );
 
+  const onValueTypeChange = useCallback(
+    (option: ComboboxOption<string> | null) => {
+      const updated = { ...query, valueType: (option?.value as ValueType) ?? undefined };
+      onChange(updated);
+      if (updated.component && updated.channel) {
+        onRunQuery();
+      }
+    },
+    [onChange, onRunQuery, query]
+  );
+
   return (
     <Stack direction="column" gap={0}>
       <Stack gap={0}>
@@ -160,6 +171,19 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             loading={keyLoading}
             disabled={!query.component || !query.channel}
             placeholder="Default (value)"
+            width={28}
+          />
+        </InlineField>
+      </Stack>
+      <Stack gap={0}>
+        <InlineField label="Value type" labelWidth={16} tooltip="Column type to return (defaults to floating)">
+          <Combobox
+            id="query-editor-value-type"
+            options={VALUE_TYPE_OPTIONS}
+            value={query.valueType ?? null}
+            onChange={onValueTypeChange}
+            isClearable
+            placeholder="Default (floating)"
             width={28}
           />
         </InlineField>
