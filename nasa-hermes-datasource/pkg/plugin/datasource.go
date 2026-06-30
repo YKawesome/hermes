@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/nasa/hermes-datasource/pkg/models"
 
@@ -52,15 +54,25 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 		return nil, fmt.Errorf("Unable to initialize postgres database driver: %w", err)
 	}
 
-	return &Datasource{
+	ds := &Datasource{
 		db: db,
-	}, nil
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/components", ds.handleGetComponents)
+	mux.HandleFunc("/channels", ds.handleGetChannels)
+	mux.HandleFunc("/sources", ds.handleGetSources)
+	mux.HandleFunc("/keys", ds.handleGetKeys)
+	ds.CallResourceHandler = httpadapter.New(mux)
+
+	return ds, nil
 }
 
 // Datasource is an example datasource which can respond to data queries, reports
 // its health and has streaming skills.
 type Datasource struct {
 	db *sql.DB
+	backend.CallResourceHandler
 }
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
