@@ -158,7 +158,7 @@ jobs:
         id: resolve-versions
         uses: grafana/plugin-actions/e2e-version@e2e-version/v2.0.0
         with:
-          path: ./nasa-hermes-datasource
+          plugin-directory: ./nasa-hermes-datasource
 
   playwright-tests:
     needs: [resolve-versions, build]
