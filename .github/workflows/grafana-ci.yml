@@ -81,6 +81,7 @@ jobs:
         with:
           version: latest
           args: buildAll
+          workdir: ./nasa-hermes-datasource
 
       - name: Test backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
@@ -88,6 +89,7 @@ jobs:
         with:
           version: latest
           args: test
+          workdir: ./nasa-hermes-datasource
 
       - name: Check for E2E
         id: check-for-e2e
