@@ -20,6 +20,8 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
       channel: query.channel ? templateSrv.replace(query.channel, scopedVars) : undefined,
       source: query.source ? templateSrv.replace(query.source, scopedVars) : undefined,
       key: query.key ? templateSrv.replace(query.key, scopedVars) : undefined,
+      timeOverrideFrom: query.timeOverrideFrom ? new Date(query.timeOverrideFrom).toISOString() : undefined,
+      timeOverrideTo: query.timeOverrideTo ? new Date(query.timeOverrideTo).toISOString() : undefined,
     };
   }
 

@@ -32,12 +32,13 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 }
 
 type queryModel struct {
-	QueryType         string            `json:"queryType"`
-	Component         string            `json:"component"`
-	Channel           string            `json:"channel"`
-	Source            string            `json:"source"`
-	TimeRangeOverride backend.TimeRange `json:"timeRangeOverride,omitempty"`
-	Key               string            `json:"key,omitempty"`
+	QueryType        string `json:"queryType"`
+	Component        string `json:"component"`
+	Channel          string `json:"channel"`
+	Source           string `json:"source"`
+	TimeOverrideFrom string `json:"timeOverrideFrom,omitempty"`
+	TimeOverrideTo   string `json:"timeOverrideTo,omitempty"`
+	Key              string `json:"key,omitempty"`
 }
 
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
@@ -51,11 +52,15 @@ func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, quer
 
 	queryFrom := query.TimeRange.From
 	queryTo := query.TimeRange.To
-	if !qm.TimeRangeOverride.From.IsZero() {
-		queryFrom = qm.TimeRangeOverride.From
+	if qm.TimeOverrideFrom != "" {
+		if t, err := time.Parse(time.RFC3339Nano, qm.TimeOverrideFrom); err == nil {
+			queryFrom = t
+		}
 	}
-	if !qm.TimeRangeOverride.To.IsZero() {
-		queryTo = qm.TimeRangeOverride.To
+	if qm.TimeOverrideTo != "" {
+		if t, err := time.Parse(time.RFC3339Nano, qm.TimeOverrideTo); err == nil {
+			queryTo = t
+		}
 	}
 
 	switch qm.QueryType {
