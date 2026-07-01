@@ -118,7 +118,7 @@ func (d *Datasource) queryEvents(ctx context.Context, _ backend.PluginContext, q
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("events query execution failed: %v", err.Error()))
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	frame := data.NewFrame("Events")
 	frame.Fields = append(frame.Fields,
@@ -181,7 +181,7 @@ func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("telemetry query execution failed: %v", err.Error()))
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return buildResponse(qm, rows, response)
 }
