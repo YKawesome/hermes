@@ -73,7 +73,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     const loadChannels = async () => {
       setChannelLoading(true);
       datasource
-        .getChannels(query.component)
+        .getChannels(query.component ?? "")
         .then((values) => setChannelOptions(toOptions(values)))
         .catch(() => setChannelOptions([]))
         .finally(() => setChannelLoading(false));
@@ -89,7 +89,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     const loadKeys = async () => {
       setKeyLoading(true);
       datasource
-        .getKeys(query.component, query.channel)
+        .getKeys(query.component ?? "", query.channel ?? "")
         .then((values) => setKeyOptions(toOptions(values)))
         .catch(() => setKeyOptions([]))
         .finally(() => setKeyLoading(false));

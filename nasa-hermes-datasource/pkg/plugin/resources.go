@@ -13,7 +13,7 @@ func (d *Datasource) handleGetTelemetryComponents(w http.ResponseWriter, r *http
 	}
 	defer rows.Close()
 
-	var items []string
+	items := []string{}
 	for rows.Next() {
 		var item string
 		if err := rows.Scan(&item); err != nil {
@@ -27,6 +27,11 @@ func (d *Datasource) handleGetTelemetryComponents(w http.ResponseWriter, r *http
 
 func (d *Datasource) handleGetTelemetryChannels(w http.ResponseWriter, r *http.Request) {
 	component := r.URL.Query().Get("component")
+	if component == "" {
+		writeJSONResponse(w, []string{})
+		return
+	}
+
 	rows, err := d.db.QueryContext(r.Context(), "SELECT name FROM telemetryDefs WHERE component = $1 ORDER BY name;", component)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -34,7 +39,7 @@ func (d *Datasource) handleGetTelemetryChannels(w http.ResponseWriter, r *http.R
 	}
 	defer rows.Close()
 
-	var items []string
+	items := []string{}
 	for rows.Next() {
 		var item string
 		if err := rows.Scan(&item); err != nil {
@@ -69,6 +74,10 @@ func (d *Datasource) handleGetTelemetrySources(w http.ResponseWriter, r *http.Re
 func (d *Datasource) handleGetTelemetryKeys(w http.ResponseWriter, r *http.Request) {
 	component := r.URL.Query().Get("component")
 	channel := r.URL.Query().Get("channel")
+	if component == "" || channel == "" {
+		writeJSONResponse(w, []string{})
+		return
+	}
 
 	query := `
 		SELECT DISTINCT t.key 
@@ -84,7 +93,7 @@ func (d *Datasource) handleGetTelemetryKeys(w http.ResponseWriter, r *http.Reque
 	}
 	defer rows.Close()
 
-	var items []string
+	items := []string{}
 	for rows.Next() {
 		var item string
 		if err := rows.Scan(&item); err != nil {
