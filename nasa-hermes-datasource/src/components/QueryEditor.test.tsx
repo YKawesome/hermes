@@ -2,9 +2,8 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { QueryEditor } from './QueryEditor';
 import { DataSource } from '../datasource';
-import { MyQuery } from '../types';
+import { MyDataSourceOptions, MyQuery } from '../types';
 import { QueryEditorProps } from '@grafana/data';
-import { MyDataSourceOptions } from '../types';
 
 beforeAll(() => {
   global.IntersectionObserver = class IntersectionObserver {

@@ -1,13 +1,17 @@
-name: Bundle Stats
+name: Grafana Bundle Stats
 
 on:
   workflow_dispatch:
   pull_request:
     branches:
       - main
+    paths:
+      - 'nasa-hermes-datasource/**'
   push:
     branches:
       - main
+    paths:
+      - 'nasa-hermes-datasource/**'
 
 permissions:
   contents: read
@@ -25,3 +29,5 @@ jobs:
           persist-credentials: false
 
       - uses: grafana/plugin-actions/bundle-size@bundle-size/v1.0.2
+        with:
+          path: ./nasa-hermes-datasource

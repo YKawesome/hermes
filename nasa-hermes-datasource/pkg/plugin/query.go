@@ -118,7 +118,7 @@ func (d *Datasource) queryEvents(ctx context.Context, _ backend.PluginContext, q
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("events query execution failed: %v", err.Error()))
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	frame := data.NewFrame("Events")
 	frame.Fields = append(frame.Fields,
@@ -154,77 +154,49 @@ func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext
 		return response
 	}
 
-	// Resolve telemetry def id
-	var valueType string
-	var defID int64
-	// TODO: switch to a single query instead of two
-	// TODO: also consider having valueType in telemetryDefs instead of telemetry
-	defQuery := `
-		SELECT d.id, t.valueType
-		FROM telemetryDefs d
-		JOIN telemetry t ON t.telemetryDefId = d.id
-		WHERE d.component = $1 AND d.name = $2
-		LIMIT 1;`
-	err := d.db.QueryRowContext(ctx, defQuery, qm.Component, qm.Channel).Scan(&defID, &valueType)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return backend.ErrDataResponse(backend.StatusNotFound, fmt.Sprintf("telemetry channel '%s.%s' not found", qm.Component, qm.Channel))
-		}
-		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("telemetry metadata registry failure: %v", err.Error()))
+	// Set time grouping interval
+	intervalStr := fmt.Sprintf("%d seconds", int(queryInterval.Seconds()))
+	if queryInterval.Seconds() < 1 {
+		intervalStr = "1 second"
 	}
 
-	// Resolve data column
-	rawSQL, queryArgs := buildSQLQuery(valueType, defID, qm, queryFrom, queryTo, queryInterval)
+	queryArgs := []interface{}{
+		qm.Component,
+		qm.Channel,
+		qm.Source,
+		queryFrom,
+		queryTo,
+		qm.Key,
+		intervalStr,
+	}
+
+	// TODO: also consider having valueType in telemetryDefs instead of telemetry
+	rawSQL := `
+		SELECT 
+			time_bucket($7::interval, t.time) AS time_bucket,
+			t.valueType,
+			AVG(t.integral::double precision) AS val_int,
+			AVG(t.floating::double precision) AS val_float,
+			AVG(t.boolval::int::double precision) AS val_bool,
+			MAX(t.string) AS val_str 
+		FROM telemetryDefs d
+		JOIN telemetry t ON t.telemetryDefId = d.id
+		WHERE d.component = $1
+		  AND d.name = $2
+		  AND ($3 = '' OR t.source = $3)
+		  AND t.time >= $4 AND t.time <= $5
+		  AND ($6 = '' OR t.key = $6)
+		GROUP BY time_bucket, t.valueType
+		ORDER BY time_bucket ASC;`
 
 	// Execute the query
 	rows, err := d.db.QueryContext(ctx, rawSQL, queryArgs...)
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("telemetry query execution failed: %v", err.Error()))
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return buildResponse(qm, rows, response)
-}
-
-func buildSQLQuery(valueType string, defID int64, qm queryModel, queryFrom time.Time, queryTo time.Time, queryInterval time.Duration) (string, []interface{}) {
-	targetColumn := "floating"
-	switch valueType {
-	case "int", "uint":
-		targetColumn = "integral"
-	case "bool":
-		targetColumn = "boolval"
-	case "string", "enum":
-		targetColumn = "string"
-	case "float":
-		targetColumn = "floating"
-	}
-
-	// Configure query
-	var queryArgs []interface{}
-	queryArgs = append(queryArgs, defID, qm.Source, queryFrom, queryTo, qm.Key)
-
-	// Set time grouping interval
-	intervalStr := fmt.Sprintf("%d seconds", int(queryInterval.Seconds()))
-	if queryInterval.Seconds() < 1 {
-		intervalStr = "1 second"
-	}
-	queryArgs = append(queryArgs, intervalStr)
-
-	rawSQL := fmt.Sprintf(`
-		SELECT 
-			time_bucket($6::interval, t.time) AS time_bucket,
-			AVG(t.%s::double precision) AS value
-		FROM telemetry t
-		WHERE t.telemetryDefId = $1
-		  AND ($2 = '' OR t.source = $2)
-		  AND t.time >= $3 
-		  AND t.time <= $4
-		  AND ($5 = '' OR t.key = $5)
-		GROUP BY time_bucket
-		ORDER BY time_bucket ASC;
-	`, targetColumn)
-
-	return rawSQL, queryArgs
 }
 
 func buildResponse(qm queryModel, rows *sql.Rows, response backend.DataResponse) backend.DataResponse {
@@ -232,23 +204,59 @@ func buildResponse(qm queryModel, rows *sql.Rows, response backend.DataResponse)
 	// For an overview on data frames and how grafana handles them:
 	// https://grafana.com/developers/plugin-tools/introduction/data-frames
 	frame := data.NewFrame(qm.Channel)
-	frame.Fields = append(frame.Fields,
-		data.NewField("time", nil, []time.Time{}),
-		data.NewField("values", nil, []*float64{}),
-	)
+	frame.Fields = append(frame.Fields, data.NewField("time", nil, []time.Time{}))
+
+	valueFieldName := fmt.Sprintf("%s.%s", qm.Component, qm.Channel)
+	var valueField *data.Field
 
 	for rows.Next() {
 		var t time.Time
-		var v sql.NullFloat64
-		if err := rows.Scan(&t, &v); err != nil {
+		var dbValueType string
+		var vInt, vFloat, vBool sql.NullFloat64
+		var vStr sql.NullString
+		if err := rows.Scan(&t, &dbValueType, &vInt, &vFloat, &vBool, &vStr); err != nil {
 			return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("telemetry row scan failure: %v", err.Error()))
 		}
 
-		var valPtr *float64
-		if v.Valid {
-			valPtr = &v.Float64
+		if valueField == nil {
+			switch dbValueType {
+			case "int", "uint", "float":
+				valueField = data.NewField(valueFieldName, nil, []*float64{})
+			case "bool":
+				valueField = data.NewField(valueFieldName, nil, []*bool{})
+			default:
+				valueField = data.NewField(valueFieldName, nil, []*string{})
+			}
+			frame.Fields = append(frame.Fields, valueField)
 		}
-		frame.AppendRow(t, valPtr)
+
+		switch dbValueType {
+		case "int", "uint":
+			var valPtr *float64
+			if vInt.Valid {
+				valPtr = &vInt.Float64
+			}
+			frame.AppendRow(t, valPtr)
+		case "float":
+			var valPtr *float64
+			if vFloat.Valid {
+				valPtr = &vFloat.Float64
+			}
+			frame.AppendRow(t, valPtr)
+		case "bool":
+			var valPtr *bool
+			if vBool.Valid {
+				b := vBool.Float64 > 0
+				valPtr = &b
+			}
+			frame.AppendRow(t, valPtr)
+		default:
+			var valPtr *string
+			if vStr.Valid {
+				valPtr = &vStr.String
+			}
+			frame.AppendRow(t, valPtr)
+		}
 	}
 
 	response.Frames = append(response.Frames, frame)

@@ -1,11 +1,17 @@
-name: Latest Grafana API compatibility check
-on: [pull_request]
+name: Grafana Latest Grafana API compatibility check
+on:
+  pull_request:
+    paths:
+      - 'nasa-hermes-datasource/**'
 
 jobs:
   compatibilitycheck:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: ./nasa-hermes-datasource
     steps:
       - uses: actions/checkout@v6
         with:
@@ -16,6 +22,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+          cache-dependency-path: ./nasa-hermes-datasource/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -27,7 +34,7 @@ jobs:
         id: find-module-ts
         run: |
           MODULETS="$(find ./src -type f \( -name "module.ts" -o -name "module.tsx" \))"
-          echo "modulets=${MODULETS}" >> $GITHUB_OUTPUT
+          echo "modulets=./nasa-hermes-datasource/${MODULETS#./}" >> $GITHUB_OUTPUT
 
       - name: Compatibility check
         uses: grafana/plugin-actions/is-compatible@is-compatible/v1.0.2

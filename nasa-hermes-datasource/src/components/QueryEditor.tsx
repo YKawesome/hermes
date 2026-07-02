@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { CollapsableSection, Combobox, DateTimePicker, InlineField, InlineFieldRow, RadioButtonGroup } from '@grafana/ui';
+import { CollapsableSection, Combobox, ComboboxOption, DateTimePicker, InlineField, InlineFieldRow, RadioButtonGroup } from '@grafana/ui';
 import { dateTime, DateTime, QueryEditorProps, SelectableValue } from '@grafana/data';
-import type { ComboboxOption } from '@grafana/ui';
 import { DataSource } from '../datasource';
 import { MyDataSourceOptions, MyQuery, QueryType } from '../types';
 
@@ -40,50 +39,62 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     if (queryType !== 'telemetry') {
       return;
     }
-    setComponentLoading(true);
-    datasource
-      .getComponents()
-      .then((values) => setComponentOptions(toOptions(values)))
-      .catch(() => setComponentOptions([]))
-      .finally(() => setComponentLoading(false));
+    const loadComponents = async () => {
+      setComponentLoading(true);
+      datasource
+        .getComponents()
+        .then((values) => setComponentOptions(toOptions(values)))
+        .catch(() => setComponentOptions([]))
+        .finally(() => setComponentLoading(false));
+    };
+    loadComponents();
   }, [datasource, queryType]);
 
   useEffect(() => {
     if (queryType !== 'telemetry') {
       return;
     }
-    setSourceLoading(true);
-    datasource
-      .getSources()
-      .then((values) => setSourceOptions(toOptions(values)))
-      .catch(() => setSourceOptions([]))
-      .finally(() => setSourceLoading(false));
+    const loadSources = async () => {
+      setSourceLoading(true);
+      datasource
+        .getSources()
+        .then((values) => setSourceOptions(toOptions(values)))
+        .catch(() => setSourceOptions([]))
+        .finally(() => setSourceLoading(false));
+    };
+    loadSources();
   }, [datasource, queryType]);
 
   useEffect(() => {
     if (queryType !== 'telemetry' || !query.component) {
-      setChannelOptions([]);
+      setTimeout(() => setChannelOptions([]), 0);
       return;
     }
-    setChannelLoading(true);
-    datasource
-      .getChannels(query.component)
-      .then((values) => setChannelOptions(toOptions(values)))
-      .catch(() => setChannelOptions([]))
-      .finally(() => setChannelLoading(false));
+    const loadChannels = async () => {
+      setChannelLoading(true);
+      datasource
+        .getChannels(query.component ?? "")
+        .then((values) => setChannelOptions(toOptions(values)))
+        .catch(() => setChannelOptions([]))
+        .finally(() => setChannelLoading(false));
+    };
+    loadChannels();
   }, [datasource, queryType, query.component]);
 
   useEffect(() => {
     if (queryType !== 'telemetry' || !query.component || !query.channel) {
-      setKeyOptions([]);
+      setTimeout(() => setKeyOptions([]), 0);
       return;
     }
-    setKeyLoading(true);
-    datasource
-      .getKeys(query.component, query.channel)
-      .then((values) => setKeyOptions(toOptions(values)))
-      .catch(() => setKeyOptions([]))
-      .finally(() => setKeyLoading(false));
+    const loadKeys = async () => {
+      setKeyLoading(true);
+      datasource
+        .getKeys(query.component ?? "", query.channel ?? "")
+        .then((values) => setKeyOptions(toOptions(values)))
+        .catch(() => setKeyOptions([]))
+        .finally(() => setKeyLoading(false));
+    }
+    loadKeys();
   }, [datasource, queryType, query.component, query.channel]);
 
   // --- Event data loading ---
@@ -92,12 +103,15 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     if (queryType !== 'events') {
       return;
     }
-    setEventSourceLoading(true);
-    datasource
-      .getEventSources()
-      .then((values) => setEventSourceOptions(toOptions(values)))
-      .catch(() => setEventSourceOptions([]))
-      .finally(() => setEventSourceLoading(false));
+    const loadEventSources = async () => {
+      setEventSourceLoading(true);
+      datasource
+        .getEventSources()
+        .then((values) => setEventSourceOptions(toOptions(values)))
+        .catch(() => setEventSourceOptions([]))
+        .finally(() => setEventSourceLoading(false));
+    }
+    loadEventSources();
   }, [datasource, queryType]);
 
   // --- Handlers ---

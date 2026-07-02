@@ -31,7 +31,7 @@ var (
 func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
 	config, err := models.LoadPluginSettings(settings)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to load settings")
+		return nil, fmt.Errorf("unable to load settings")
 	}
 
 	host := config.Host
@@ -48,7 +48,7 @@ func NewDatasource(_ context.Context, settings backend.DataSourceInstanceSetting
 
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to initialize postgres database driver: %w", err)
+		return nil, fmt.Errorf("unable to initialize postgres database driver: %w", err)
 	}
 
 	ds := &Datasource{
