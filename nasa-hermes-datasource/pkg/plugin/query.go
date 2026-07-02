@@ -39,7 +39,7 @@ type queryModel struct {
 	TimeOverrideFrom string `json:"timeOverrideFrom,omitempty"`
 	TimeOverrideTo   string `json:"timeOverrideTo,omitempty"`
 	Key              string `json:"key,omitempty"`
-	TimeField        string `json:"timeField,omitempty"`
+	TimeField        string `json:"timeField"`
 }
 
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {

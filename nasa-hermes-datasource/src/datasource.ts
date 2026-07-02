@@ -37,6 +37,7 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
       key: query.key ? templateSrv.replace(query.key, scopedVars) : undefined,
       timeOverrideFrom: query.timeOverrideFrom,
       timeOverrideTo: query.timeOverrideTo,
+      timeField: query.timeField ?? 'time'
     };
   }
 
