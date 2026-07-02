@@ -154,6 +154,11 @@ func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext
 		return response
 	}
 
+	sqlKeyParam := qm.Key
+	if qm.Key != "" {
+		sqlKeyParam = qm.Key + "%"
+	}
+
 	// Set time grouping interval
 	intervalStr := fmt.Sprintf("%d seconds", int(queryInterval.Seconds()))
 	if queryInterval.Seconds() < 1 {
@@ -166,7 +171,7 @@ func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext
 		qm.Source,
 		queryFrom,
 		queryTo,
-		qm.Key,
+		sqlKeyParam,
 		intervalStr,
 	}
 
@@ -175,6 +180,7 @@ func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext
 		SELECT 
 			time_bucket($7::interval, t.time) AS time_bucket,
 			t.valueType,
+			t.key,
 			AVG(t.integral::double precision) AS val_int,
 			AVG(t.floating::double precision) AS val_float,
 			AVG(t.boolval::int::double precision) AS val_bool,
@@ -185,8 +191,8 @@ func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext
 		  AND d.name = $2
 		  AND ($3 = '' OR t.source = $3)
 		  AND t.time >= $4 AND t.time <= $5
-		  AND ($6 = '' OR t.key = $6)
-		GROUP BY time_bucket, t.valueType
+		  AND ($6 = '' OR t.key LIKE $6)
+		GROUP BY time_bucket, t.valueType, t.key
 		ORDER BY time_bucket ASC;`
 
 	// Execute the query
@@ -200,36 +206,45 @@ func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext
 }
 
 func buildResponse(qm queryModel, rows *sql.Rows, response backend.DataResponse) backend.DataResponse {
-	// Create data frame response.
-	// For an overview on data frames and how grafana handles them:
-	// https://grafana.com/developers/plugin-tools/introduction/data-frames
-	frame := data.NewFrame(qm.Channel)
-	frame.Fields = append(frame.Fields, data.NewField("time", nil, []time.Time{}))
-
-	valueFieldName := fmt.Sprintf("%s.%s", qm.Component, qm.Channel)
-	var valueField *data.Field
+	frames := make(map[string]*data.Frame)
 
 	for rows.Next() {
 		var t time.Time
 		var dbValueType string
+		var key string
 		var vInt, vFloat, vBool sql.NullFloat64
 		var vStr sql.NullString
-		if err := rows.Scan(&t, &dbValueType, &vInt, &vFloat, &vBool, &vStr); err != nil {
+		if err := rows.Scan(&t, &dbValueType, &key, &vInt, &vFloat, &vBool, &vStr); err != nil {
 			return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("telemetry row scan failure: %v", err.Error()))
 		}
 
-		if valueField == nil {
+		frameId := fmt.Sprintf("%s.%s.%s", qm.Component, qm.Channel, key)
+		frame, exists := frames[frameId]
+
+		// Create new frame
+		if !exists {
+			frame = data.NewFrame(frameId)
+			frame.Fields = append(frame.Fields, data.NewField("time", nil, []time.Time{}))
+
+			var valueField *data.Field
 			switch dbValueType {
 			case "int", "uint", "float":
-				valueField = data.NewField(valueFieldName, nil, []*float64{})
+				valueField = data.NewField(frameId, nil, []*float64{})
 			case "bool":
-				valueField = data.NewField(valueFieldName, nil, []*bool{})
+				valueField = data.NewField(frameId, nil, []*bool{})
 			default:
-				valueField = data.NewField(valueFieldName, nil, []*string{})
+				valueField = data.NewField(frameId, nil, []*string{})
+			}
+			valueField.Labels = map[string]string{
+				"component": qm.Component,
+				"channel":   qm.Channel,
+				"key":       key,
 			}
 			frame.Fields = append(frame.Fields, valueField)
+			frames[frameId] = frame
 		}
 
+		// Put this row into the correct data frame
 		switch dbValueType {
 		case "int", "uint":
 			var valPtr *float64
@@ -259,6 +274,9 @@ func buildResponse(qm queryModel, rows *sql.Rows, response backend.DataResponse)
 		}
 	}
 
-	response.Frames = append(response.Frames, frame)
+	// Return all data frames
+	for _, frame := range frames {
+		response.Frames = append(response.Frames, frame)
+	}
 	return response
 }
