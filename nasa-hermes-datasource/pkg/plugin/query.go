@@ -263,11 +263,11 @@ func buildResponse(qm queryModel, rows *sql.Rows, response backend.DataResponse)
 			var valueField *data.Field
 			switch dbValueType {
 			case "int", "uint", "float":
-				valueField = data.NewField(frameId, nil, []*float64{})
+				valueField = data.NewField("value", nil, []*float64{})
 			case "bool":
-				valueField = data.NewField(frameId, nil, []*bool{})
+				valueField = data.NewField("value", nil, []*bool{})
 			default:
-				valueField = data.NewField(frameId, nil, []*string{})
+				valueField = data.NewField("value", nil, []*string{})
 			}
 			valueField.Labels = map[string]string{
 				"component": component,
