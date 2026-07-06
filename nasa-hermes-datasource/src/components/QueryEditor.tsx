@@ -232,6 +232,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           <InlineField label="Component" labelWidth={16} tooltip="FSW component or module" required>
             <MultiCombobox
               id="query-editor-component"
+              data-testid="query-editor-component"
               options={componentOptions}
               value={query.components}
               onChange={onComponentChange}
@@ -244,6 +245,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             <MultiCombobox
               key={`channel-${query.components?.join(',')}`}
               id="query-editor-channel"
+              data-testid="query-editor-channel"
               options={channelOptions}
               value={query.channels}
               onChange={onChannelChange}
@@ -256,6 +258,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           <InlineField label="Source" labelWidth={16} tooltip="FSW source identifier (optional)">
             <MultiCombobox
               id="query-editor-source"
+              data-testid="query-editor-source"
               options={sourceOptions}
               value={query.sources}
               onChange={onSourceChange}
@@ -269,6 +272,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             <InlineField label="Key" labelWidth={16} tooltip="Value field path for compound channels">
               <MultiCombobox
                 id="query-editor-key"
+                data-testid="query-editor-key"
                 options={keyOptions}
                 value={query.keys}
                 onChange={onKeyChange}
@@ -287,6 +291,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           <InlineField label="Source" labelWidth={16} tooltip="FSW source identifier (optional)">
             <MultiCombobox
               id="query-editor-event-source"
+              data-testid="query-editor-event-source"
               options={eventSourceOptions}
               value={query.sources}
               onChange={onSourceChange}
