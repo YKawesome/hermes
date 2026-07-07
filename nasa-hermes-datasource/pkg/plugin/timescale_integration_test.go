@@ -52,12 +52,13 @@ func startCommand(b *testing.B, ctx context.Context, dir, name string, args ...s
 		b.Fatalf("Command start failed [%s %v]: %v", name, args, err)
 	}
 
-	// TODO: stop littering hermes backends on my comupter
-	// b.Cleanup(func() {
-	// 	if cmd.Process != nil {
-	// 		_ = cmd.Process.Kill()
-	// 	}
-	// })
+	// Stop littering hermes backends on my comupter
+	b.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			_, _ = cmd.Process.Wait()
+		}
+	})
 }
 
 func runCommand(b *testing.B, ctx context.Context, dir, name string, args ...string) {
@@ -83,7 +84,8 @@ func waitPort(b *testing.B, target string) {
 func startHermesBackend(b *testing.B, ctx context.Context) *grpc.ClientConn {
 	b.Log("Starting Hermes backend")
 
-	startCommand(b, ctx, "../../../cmd/backend", "go", "run", ".", "--bind-type", "tcp", "--bind", hermesGrpcConnStr)
+	runCommand(b, ctx, "../../..", "make", "out/backend")
+	startCommand(b, ctx, "../../..", "./out/backend", "--bind-type", "tcp", "--bind", hermesGrpcConnStr)
 	waitPort(b, hermesGrpcConnStr)
 
 	hermesConn, err := grpc.NewClient(hermesGrpcConnStr, grpc.WithTransportCredentials(insecure.NewCredentials()))
