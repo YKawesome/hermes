@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
+	"math/rand"
 	"net"
 	"os/exec"
 	"testing"
@@ -9,48 +11,176 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	hermesGrpc "github.com/nasa/hermes/pkg/grpc"
+	pb "github.com/nasa/hermes/pkg/pb"
 )
 
 const (
-	timescaledb = "postgres://postgres:password@localhost:5432/hermes?sslmode=disable"
-	hermesGrpc  = "localhost:50051"
+	timescaleConnStr  = "postgres://postgres:password@localhost:5432/hermes?sslmode=disable"
+	hermesGrpcConnStr = "localhost:50051"
 )
 
 func BenchmarkTimescaleQueries(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	hermesCmd := exec.CommandContext(ctx, "go", "run", ".",
-		"--bind-type", "tcp",
-		"--bind", hermesGrpc,
-	)
-	hermesCmd.Dir = "../../../cmd/backend"
-	if err := hermesCmd.Start(); err != nil {
-		b.Fatalf("Hermes backend failed to start: %v", err)
+	hermesConn := startHermesBackend(b, ctx)
+	defer hermesConn.Close()
+
+	hermesClient := hermesGrpc.NewApiClient(hermesConn)
+
+	startTimescaleGrafana(b, ctx, hermesClient)
+	emitData(b, ctx, hermesClient)
+}
+
+func startCommand(b *testing.B, ctx context.Context, dir, name string, args ...string) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	if err := cmd.Start(); err != nil {
+		b.Fatalf("Command start failed [%s %v]: %v", name, args, err)
 	}
 
-	hermesReady := false
+	// TODO: stop littering hermes backends on my comupter
+	// b.Cleanup(func() {
+	// 	if cmd.Process != nil {
+	// 		_ = cmd.Process.Kill()
+	// 	}
+	// })
+}
+
+func runCommand(b *testing.B, ctx context.Context, dir, name string, args ...string) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		b.Fatalf("Command run failed [%s %v]: %v", name, args, err)
+	}
+}
+
+func waitPort(b *testing.B, target string) {
 	for range 10 {
-		hermesConn, err := net.DialTimeout("tcp", hermesGrpc, 500*time.Millisecond)
+		conn, err := net.DialTimeout("tcp", target, 500*time.Millisecond)
 		if err == nil {
-			hermesConn.Close()
-			hermesReady = true
-			break
+			conn.Close()
+			return
 		}
-
-		if hermesCmd.ProcessState != nil && hermesCmd.ProcessState.Exited() {
-			b.Fatalf("Hermes backend process crashed during startup loop!\n")
-		}
-
 		time.Sleep(1 * time.Second)
 	}
-	if !hermesReady {
-		b.Fatalf("Hermes backend gRPC connection timed out\n")
-	}
+	b.Fatalf("Network connection timed out: %s\n", target)
+}
 
-	hermesConn, err := grpc.NewClient(hermesGrpc, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func startHermesBackend(b *testing.B, ctx context.Context) *grpc.ClientConn {
+	b.Log("Starting Hermes backend")
+
+	startCommand(b, ctx, "../../../cmd/backend", "go", "run", ".", "--bind-type", "tcp", "--bind", hermesGrpcConnStr)
+	waitPort(b, hermesGrpcConnStr)
+
+	hermesConn, err := grpc.NewClient(hermesGrpcConnStr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		b.Fatalf("Hermes backend gRPC connection failed: %v", err)
 	}
-	defer hermesConn.Close()
+	b.Log("Hermes backend started")
+	return hermesConn
+}
+
+func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient) {
+	b.Log("Starting TimescaleDB Grafana Docker")
+
+	runCommand(b, ctx, "../..", "docker", "compose", "up", "-d")
+	b.Cleanup(func() {
+		runCommand(b, context.Background(), "../..", "docker", "compose", "down", "-v")
+	})
+	waitPort(b, "localhost:5432")
+
+	b.Log("TimescaleDB Grafana Docker Started")
+	b.Log("Hermes connecting to TimescaleDB")
+
+	timescaleConfig := map[string]interface{}{
+		"host":     "localhost",
+		"port":     5432,
+		"user":     "postgres",
+		"password": "password",
+		"database": "hermes",
+		"sslmode":  "disable",
+	}
+
+	timescaleConfigBytes, err := json.Marshal(timescaleConfig)
+	if err != nil {
+		b.Fatalf("Failed to marshal database config map: %v", err)
+	}
+
+	timescaleProfile := &pb.Profile{
+		Name:     "TimescaleDB",
+		Provider: "TimescaleDB",
+		Settings: string(timescaleConfigBytes),
+	}
+
+	timescaleProfileID, err := hermesClient.AddProfile(ctx, timescaleProfile)
+	if err != nil {
+		b.Fatalf("Hermes failed to add profile: %v", err)
+	}
+
+	_, err = hermesClient.StartProfile(ctx, timescaleProfileID)
+	if err != nil {
+		b.Fatalf("Hermes failed to start profile: %v", err)
+	}
+
+	b.Log("Hermes connected to TimescaleDB")
+}
+
+func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient) {
+	timeStart := time.Now().AddDate(-1, 0, 0)
+	timeSecondsTotal := 365 * 24 * 60 * 60
+
+	sources := []string{"source-alpha", "source-beta"}
+
+	for timeSeconds := 0; timeSeconds < timeSecondsTotal; timeSeconds++ {
+		timeUnix := timeStart.Add(time.Duration(timeSeconds) * time.Second)
+		source := sources[timeSeconds%len(sources)]
+
+		timeProto := &pb.Time{
+			Unix: timestamppb.New(timeUnix),
+			Sclk: float64(timeSeconds),
+		}
+
+		telemetryPacket := &pb.SourcedTelemetry{
+			Source: source,
+			Telemetry: &pb.Telemetry{
+				Ref: &pb.TelemetryRef{
+					Component: "TimescaleDB",
+					Name:      "TestTelemetry1",
+				},
+				Time: timeProto,
+				Value: &pb.Value{
+					Value: &pb.Value_F{
+						F: rand.Float64() * 100.0,
+					},
+				},
+				Labels: map[string]string{
+					"key": "test_key_1",
+				},
+			},
+		}
+		if _, err := hermesClient.EmitTelemetry(ctx, telemetryPacket); err != nil {
+			b.Fatalf("Hermes failed to emit telemetry at index %d: %v", timeSeconds, err)
+		}
+
+		if timeSeconds%60 == 0 {
+			eventPacket := &pb.SourcedEvent{
+				Source: source,
+				Event: &pb.Event{
+					Ref: &pb.EventRef{
+						Component: "TimescaleDB",
+						Name:      "TestTelemetry1",
+					},
+					Time:    timeProto,
+					Message: "Test Event Message",
+				},
+			}
+			if _, err := hermesClient.EmitEvent(ctx, eventPacket); err != nil {
+				b.Fatalf("Hermes failed to emit event at index %d: %v", timeSeconds, err)
+			}
+		}
+	}
 }
