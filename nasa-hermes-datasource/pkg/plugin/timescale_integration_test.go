@@ -29,12 +29,12 @@ func BenchmarkTimescaleQueries(b *testing.B) {
 	defer cancel()
 
 	hermesConn := startHermesBackend(b, ctx)
-	defer hermesConn.Close()
+	defer func() { _ = hermesConn.Close() }()
 
 	hermesClient := hermesGrpc.NewApiClient(hermesConn)
 
 	db := startTimescaleGrafana(b, ctx, hermesClient)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	timeNow := time.Now()
 
@@ -73,7 +73,7 @@ func waitPort(b *testing.B, target string) {
 	for range 10 {
 		conn, err := net.DialTimeout("tcp", target, 500*time.Millisecond)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			return
 		}
 		time.Sleep(1 * time.Second)
