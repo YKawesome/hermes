@@ -176,7 +176,7 @@ class ApiStub(object):
                 request_serializer=bus__pb2.BusFilter.SerializeToString,
                 response_deserializer=bus__pb2.SourcedEvent.FromString,
                 _registered_method=True)
-        self.EmitEvent = channel.unary_unary(
+        self.EmitEvent = channel.stream_unary(
                 '/Api/EmitEvent',
                 request_serializer=bus__pb2.SourcedEvent.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
@@ -186,7 +186,7 @@ class ApiStub(object):
                 request_serializer=bus__pb2.BusFilter.SerializeToString,
                 response_deserializer=bus__pb2.SourcedTelemetry.FromString,
                 _registered_method=True)
-        self.EmitTelemetry = channel.unary_unary(
+        self.EmitTelemetry = channel.stream_unary(
                 '/Api/EmitTelemetry',
                 request_serializer=bus__pb2.SourcedTelemetry.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
@@ -462,7 +462,7 @@ class ApiServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def EmitEvent(self, request, context):
+    def EmitEvent(self, request_iterator, context):
         """Emit to the event message bus
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -476,7 +476,7 @@ class ApiServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def EmitTelemetry(self, request, context):
+    def EmitTelemetry(self, request_iterator, context):
         """Emit to the telemetry message bus
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -642,7 +642,7 @@ def add_ApiServicer_to_server(servicer, server):
                     request_deserializer=bus__pb2.BusFilter.FromString,
                     response_serializer=bus__pb2.SourcedEvent.SerializeToString,
             ),
-            'EmitEvent': grpc.unary_unary_rpc_method_handler(
+            'EmitEvent': grpc.stream_unary_rpc_method_handler(
                     servicer.EmitEvent,
                     request_deserializer=bus__pb2.SourcedEvent.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
@@ -652,7 +652,7 @@ def add_ApiServicer_to_server(servicer, server):
                     request_deserializer=bus__pb2.BusFilter.FromString,
                     response_serializer=bus__pb2.SourcedTelemetry.SerializeToString,
             ),
-            'EmitTelemetry': grpc.unary_unary_rpc_method_handler(
+            'EmitTelemetry': grpc.stream_unary_rpc_method_handler(
                     servicer.EmitTelemetry,
                     request_deserializer=bus__pb2.SourcedTelemetry.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
@@ -1414,7 +1414,7 @@ class Api(object):
             _registered_method=True)
 
     @staticmethod
-    def EmitEvent(request,
+    def EmitEvent(request_iterator,
             target,
             options=(),
             channel_credentials=None,
@@ -1424,8 +1424,8 @@ class Api(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
+        return grpc.experimental.stream_unary(
+            request_iterator,
             target,
             '/Api/EmitEvent',
             bus__pb2.SourcedEvent.SerializeToString,
@@ -1468,7 +1468,7 @@ class Api(object):
             _registered_method=True)
 
     @staticmethod
-    def EmitTelemetry(request,
+    def EmitTelemetry(request_iterator,
             target,
             options=(),
             channel_credentials=None,
@@ -1478,8 +1478,8 @@ class Api(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
+        return grpc.experimental.stream_unary(
+            request_iterator,
             target,
             '/Api/EmitTelemetry',
             bus__pb2.SourcedTelemetry.SerializeToString,

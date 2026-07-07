@@ -144,6 +144,15 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 
 	sources := []string{"source-alpha", "source-beta"}
 
+	telemetryStream, err := hermesClient.EmitTelemetry(ctx)
+	if err != nil {
+		b.Fatalf("Failed to open telemetry stream: %v", err)
+	}
+	eventStream, err := hermesClient.EmitEvent(ctx)
+	if err != nil {
+		b.Fatalf("Failed to open event stream: %v", err)
+	}
+
 	for timeSeconds := 0; timeSeconds < timeSecondsTotal; timeSeconds++ {
 		timeUnix := timeStart.Add(time.Duration(timeSeconds) * time.Second)
 		source := sources[timeSeconds%len(sources)]
@@ -171,7 +180,7 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 				},
 			},
 		}
-		if _, err := hermesClient.EmitTelemetry(ctx, telemetryPacket); err != nil {
+		if err := telemetryStream.Send(telemetryPacket); err != nil {
 			b.Fatalf("Hermes failed to emit telemetry at index %d: %v", timeSeconds, err)
 		}
 
@@ -187,7 +196,7 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 					Message: "Test Event Message",
 				},
 			}
-			if _, err := hermesClient.EmitEvent(ctx, eventPacket); err != nil {
+			if err := eventStream.Send(eventPacket); err != nil {
 				b.Fatalf("Hermes failed to emit event at index %d: %v", timeSeconds, err)
 			}
 		}
@@ -195,6 +204,13 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 		if timeSeconds%(60*60) == 0 {
 			b.Logf("Emitted %d/%d seconds of data", timeSeconds, timeSecondsTotal)
 		}
+	}
+
+	if _, err := telemetryStream.CloseAndRecv(); err != nil {
+		b.Fatalf("Telemetry stream close acknowledgment failed: %v", err)
+	}
+	if _, err := eventStream.CloseAndRecv(); err != nil {
+		b.Fatalf("Event stream close acknowledgment failed: %v", err)
 	}
 }
 

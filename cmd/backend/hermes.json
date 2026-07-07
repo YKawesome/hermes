@@ -113,7 +113,7 @@
         "name": "TimescaleDB",
         "provider": "TimescaleDB",
         "settings": {
-            "host": "127.0.0.1",
+            "host": "localhost",
             "user": "postgres",
             "password": "password",
             "database": "hermes"
@@ -124,6 +124,26 @@
         "provider": "TimescaleDB",
         "settings": {
             "host": "localhost",
+            "user": "postgres",
+            "password": "password",
+            "database": "hermes"
+        }
+    },
+    {
+        "name": "TimescaleDB",
+        "provider": "TimescaleDB",
+        "settings": {
+            "host": "localhost",
+            "user": "postgres",
+            "password": "password",
+            "database": "hermes"
+        }
+    },
+    {
+        "name": "TimescaleDB",
+        "provider": "TimescaleDB",
+        "settings": {
+            "host": "127.0.0.1",
             "user": "postgres",
             "password": "password",
             "database": "hermes"

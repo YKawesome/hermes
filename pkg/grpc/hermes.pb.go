@@ -27,7 +27,7 @@ var File_hermes_proto protoreflect.FileDescriptor
 const file_hermes_proto_rawDesc = "" +
 	"\n" +
 	"\fhermes.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x10dictionary.proto\x1a\n" +
-	"file.proto\x1a\tfsw.proto\x1a\tbus.proto\x1a\rprofile.proto\x1a\tmsg.proto2\xbb\x0f\n" +
+	"file.proto\x1a\tfsw.proto\x1a\tbus.proto\x1a\rprofile.proto\x1a\tmsg.proto2\xbf\x0f\n" +
 	"\x03Api\x12:\n" +
 	"\bSequence\x12\x17.hermes.CommandSequence\x1a\x15.hermes.SequenceReply\x12@\n" +
 	"\vRawSequence\x12\x1a.hermes.RawCommandSequence\x1a\x15.hermes.SequenceReply\x12.\n" +
@@ -65,10 +65,10 @@ const file_hermes_proto_rawDesc = "" +
 	".hermes.Id\x1a\x16.google.protobuf.Empty\x12?\n" +
 	"\rAllDictionary\x12\x16.google.protobuf.Empty\x1a\x16.hermes.DictionaryList\x12G\n" +
 	"\x13SubscribeDictionary\x12\x16.google.protobuf.Empty\x1a\x16.hermes.DictionaryList0\x01\x125\n" +
-	"\bSubEvent\x12\x11.hermes.BusFilter\x1a\x14.hermes.SourcedEvent0\x01\x129\n" +
-	"\tEmitEvent\x12\x14.hermes.SourcedEvent\x1a\x16.google.protobuf.Empty\x12=\n" +
-	"\fSubTelemetry\x12\x11.hermes.BusFilter\x1a\x18.hermes.SourcedTelemetry0\x01\x12A\n" +
-	"\rEmitTelemetry\x12\x18.hermes.SourcedTelemetry\x1a\x16.google.protobuf.Empty\x12<\n" +
+	"\bSubEvent\x12\x11.hermes.BusFilter\x1a\x14.hermes.SourcedEvent0\x01\x12;\n" +
+	"\tEmitEvent\x12\x14.hermes.SourcedEvent\x1a\x16.google.protobuf.Empty(\x01\x12=\n" +
+	"\fSubTelemetry\x12\x11.hermes.BusFilter\x1a\x18.hermes.SourcedTelemetry0\x01\x12C\n" +
+	"\rEmitTelemetry\x12\x18.hermes.SourcedTelemetry\x1a\x16.google.protobuf.Empty(\x01\x12<\n" +
 	"\x0fSubFileDownlink\x12\x11.hermes.BusFilter\x1a\x14.hermes.FileDownlink0\x01\x128\n" +
 	"\rSubFileUplink\x12\x11.hermes.BusFilter\x1a\x12.hermes.FileUplink0\x01\x12F\n" +
 	"\x0fSubFileTransfer\x12\x16.google.protobuf.Empty\x1a\x19.hermes.FileTransferState0\x012\x80\x02\n" +

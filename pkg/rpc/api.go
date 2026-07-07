@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"slices"
 	"strings"
@@ -840,14 +841,21 @@ func (r *apiServer) SubEvent(filter *pb.BusFilter, s grpc.ServerStreamingServer[
 	return nil
 }
 
-func (r *apiServer) EmitEvent(ctx context.Context, e *pb.SourcedEvent) (*emptypb.Empty, error) {
-	if e == nil || e.Event == nil || e.Event.Ref == nil {
-		return nil, fmt.Errorf("invalid event packet payload struct")
+func (r *apiServer) EmitEvent(s grpc.ClientStreamingServer[pb.SourcedEvent, emptypb.Empty]) error {
+	for {
+		e, err := s.Recv()
+		if err == io.EOF {
+			return s.SendAndClose(&emptypb.Empty{})
+		}
+		if err != nil {
+			return fmt.Errorf("error whlie receiving event from stream: %w", err)
+		}
+		if e == nil || e.Event == nil || e.Event.Ref == nil {
+			return fmt.Errorf("invalid event packet payload struct")
+		}
+
+		host.Event.Emit(e)
 	}
-
-	host.Event.Emit(e)
-
-	return &emptypb.Empty{}, nil
 }
 
 // SubTelemetry implements pb.ApiServer.
@@ -901,14 +909,21 @@ func (r *apiServer) SubTelemetry(filter *pb.BusFilter, s grpc.ServerStreamingSer
 	return nil
 }
 
-func (r *apiServer) EmitTelemetry(ctx context.Context, t *pb.SourcedTelemetry) (*emptypb.Empty, error) {
-	if t == nil || t.Telemetry == nil || t.Telemetry.Ref == nil {
-		return nil, fmt.Errorf("invalid telemetry packet payload struct")
+func (r *apiServer) EmitTelemetry(s grpc.ClientStreamingServer[pb.SourcedTelemetry, emptypb.Empty]) error {
+	for {
+		t, err := s.Recv()
+		if err == io.EOF {
+			return s.SendAndClose(&emptypb.Empty{})
+		}
+		if err != nil {
+			return fmt.Errorf("error whlie receiving telemetry from stream: %w", err)
+		}
+		if t == nil || t.Telemetry == nil || t.Telemetry.Ref == nil {
+			return fmt.Errorf("invalid telemetry packet payload struct")
+		}
+
+		host.Telemetry.Emit(t)
 	}
-
-	host.Telemetry.Emit(t)
-
-	return &emptypb.Empty{}, nil
 }
 
 // SubFileTransfer implements grpc.ApiServer.

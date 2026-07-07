@@ -185,11 +185,11 @@ type ApiClient interface {
 	// Subscribe to the event message bus
 	SubEvent(ctx context.Context, in *pb.BusFilter, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.SourcedEvent], error)
 	// Emit to the event message bus
-	EmitEvent(ctx context.Context, in *pb.SourcedEvent, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EmitEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[pb.SourcedEvent, emptypb.Empty], error)
 	// Subscribe to the telemetry message bus
 	SubTelemetry(ctx context.Context, in *pb.BusFilter, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.SourcedTelemetry], error)
 	// Emit to the telemetry message bus
-	EmitTelemetry(ctx context.Context, in *pb.SourcedTelemetry, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EmitTelemetry(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[pb.SourcedTelemetry, emptypb.Empty], error)
 	// Subscribe to the file downlink message bus
 	SubFileDownlink(ctx context.Context, in *pb.BusFilter, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.FileDownlink], error)
 	// Subscribe to the file downlink message bus
@@ -524,19 +524,22 @@ func (c *apiClient) SubEvent(ctx context.Context, in *pb.BusFilter, opts ...grpc
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Api_SubEventClient = grpc.ServerStreamingClient[pb.SourcedEvent]
 
-func (c *apiClient) EmitEvent(ctx context.Context, in *pb.SourcedEvent, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *apiClient) EmitEvent(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[pb.SourcedEvent, emptypb.Empty], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Api_EmitEvent_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[6], Api_EmitEvent_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[pb.SourcedEvent, emptypb.Empty]{ClientStream: stream}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_EmitEventClient = grpc.ClientStreamingClient[pb.SourcedEvent, emptypb.Empty]
 
 func (c *apiClient) SubTelemetry(ctx context.Context, in *pb.BusFilter, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.SourcedTelemetry], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[6], Api_SubTelemetry_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[7], Api_SubTelemetry_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -553,19 +556,22 @@ func (c *apiClient) SubTelemetry(ctx context.Context, in *pb.BusFilter, opts ...
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Api_SubTelemetryClient = grpc.ServerStreamingClient[pb.SourcedTelemetry]
 
-func (c *apiClient) EmitTelemetry(ctx context.Context, in *pb.SourcedTelemetry, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *apiClient) EmitTelemetry(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[pb.SourcedTelemetry, emptypb.Empty], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Api_EmitTelemetry_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[8], Api_EmitTelemetry_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[pb.SourcedTelemetry, emptypb.Empty]{ClientStream: stream}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_EmitTelemetryClient = grpc.ClientStreamingClient[pb.SourcedTelemetry, emptypb.Empty]
 
 func (c *apiClient) SubFileDownlink(ctx context.Context, in *pb.BusFilter, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.FileDownlink], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[7], Api_SubFileDownlink_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[9], Api_SubFileDownlink_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +590,7 @@ type Api_SubFileDownlinkClient = grpc.ServerStreamingClient[pb.FileDownlink]
 
 func (c *apiClient) SubFileUplink(ctx context.Context, in *pb.BusFilter, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.FileUplink], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[8], Api_SubFileUplink_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[10], Api_SubFileUplink_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +609,7 @@ type Api_SubFileUplinkClient = grpc.ServerStreamingClient[pb.FileUplink]
 
 func (c *apiClient) SubFileTransfer(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.FileTransferState], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[9], Api_SubFileTransfer_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Api_ServiceDesc.Streams[11], Api_SubFileTransfer_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -749,11 +755,11 @@ type ApiServer interface {
 	// Subscribe to the event message bus
 	SubEvent(*pb.BusFilter, grpc.ServerStreamingServer[pb.SourcedEvent]) error
 	// Emit to the event message bus
-	EmitEvent(context.Context, *pb.SourcedEvent) (*emptypb.Empty, error)
+	EmitEvent(grpc.ClientStreamingServer[pb.SourcedEvent, emptypb.Empty]) error
 	// Subscribe to the telemetry message bus
 	SubTelemetry(*pb.BusFilter, grpc.ServerStreamingServer[pb.SourcedTelemetry]) error
 	// Emit to the telemetry message bus
-	EmitTelemetry(context.Context, *pb.SourcedTelemetry) (*emptypb.Empty, error)
+	EmitTelemetry(grpc.ClientStreamingServer[pb.SourcedTelemetry, emptypb.Empty]) error
 	// Subscribe to the file downlink message bus
 	SubFileDownlink(*pb.BusFilter, grpc.ServerStreamingServer[pb.FileDownlink]) error
 	// Subscribe to the file downlink message bus
@@ -851,14 +857,14 @@ func (UnimplementedApiServer) SubscribeDictionary(*emptypb.Empty, grpc.ServerStr
 func (UnimplementedApiServer) SubEvent(*pb.BusFilter, grpc.ServerStreamingServer[pb.SourcedEvent]) error {
 	return status.Error(codes.Unimplemented, "method SubEvent not implemented")
 }
-func (UnimplementedApiServer) EmitEvent(context.Context, *pb.SourcedEvent) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "method EmitEvent not implemented")
+func (UnimplementedApiServer) EmitEvent(grpc.ClientStreamingServer[pb.SourcedEvent, emptypb.Empty]) error {
+	return status.Error(codes.Unimplemented, "method EmitEvent not implemented")
 }
 func (UnimplementedApiServer) SubTelemetry(*pb.BusFilter, grpc.ServerStreamingServer[pb.SourcedTelemetry]) error {
 	return status.Error(codes.Unimplemented, "method SubTelemetry not implemented")
 }
-func (UnimplementedApiServer) EmitTelemetry(context.Context, *pb.SourcedTelemetry) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "method EmitTelemetry not implemented")
+func (UnimplementedApiServer) EmitTelemetry(grpc.ClientStreamingServer[pb.SourcedTelemetry, emptypb.Empty]) error {
+	return status.Error(codes.Unimplemented, "method EmitTelemetry not implemented")
 }
 func (UnimplementedApiServer) SubFileDownlink(*pb.BusFilter, grpc.ServerStreamingServer[pb.FileDownlink]) error {
 	return status.Error(codes.Unimplemented, "method SubFileDownlink not implemented")
@@ -1330,23 +1336,12 @@ func _Api_SubEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Api_SubEventServer = grpc.ServerStreamingServer[pb.SourcedEvent]
 
-func _Api_EmitEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(pb.SourcedEvent)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).EmitEvent(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Api_EmitEvent_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).EmitEvent(ctx, req.(*pb.SourcedEvent))
-	}
-	return interceptor(ctx, in, info, handler)
+func _Api_EmitEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ApiServer).EmitEvent(&grpc.GenericServerStream[pb.SourcedEvent, emptypb.Empty]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_EmitEventServer = grpc.ClientStreamingServer[pb.SourcedEvent, emptypb.Empty]
 
 func _Api_SubTelemetry_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(pb.BusFilter)
@@ -1359,23 +1354,12 @@ func _Api_SubTelemetry_Handler(srv interface{}, stream grpc.ServerStream) error 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Api_SubTelemetryServer = grpc.ServerStreamingServer[pb.SourcedTelemetry]
 
-func _Api_EmitTelemetry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(pb.SourcedTelemetry)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ApiServer).EmitTelemetry(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Api_EmitTelemetry_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ApiServer).EmitTelemetry(ctx, req.(*pb.SourcedTelemetry))
-	}
-	return interceptor(ctx, in, info, handler)
+func _Api_EmitTelemetry_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ApiServer).EmitTelemetry(&grpc.GenericServerStream[pb.SourcedTelemetry, emptypb.Empty]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Api_EmitTelemetryServer = grpc.ClientStreamingServer[pb.SourcedTelemetry, emptypb.Empty]
 
 func _Api_SubFileDownlink_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(pb.BusFilter)
@@ -1501,14 +1485,6 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "AllDictionary",
 			Handler:    _Api_AllDictionary_Handler,
 		},
-		{
-			MethodName: "EmitEvent",
-			Handler:    _Api_EmitEvent_Handler,
-		},
-		{
-			MethodName: "EmitTelemetry",
-			Handler:    _Api_EmitTelemetry_Handler,
-		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1542,9 +1518,19 @@ var Api_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
+			StreamName:    "EmitEvent",
+			Handler:       _Api_EmitEvent_Handler,
+			ClientStreams: true,
+		},
+		{
 			StreamName:    "SubTelemetry",
 			Handler:       _Api_SubTelemetry_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "EmitTelemetry",
+			Handler:       _Api_EmitTelemetry_Handler,
+			ClientStreams: true,
 		},
 		{
 			StreamName:    "SubFileDownlink",
