@@ -4,7 +4,7 @@ test('smoke: should render query editor with dropdowns', async ({ panelEditPage,
   const ds = await readProvisionedDataSource({ fileName: 'datasources.yml' });
   await panelEditPage.datasource.set(ds.name);
   const queryRow = panelEditPage.getQueryEditorRow('A');
-  await expect(queryRow.getByRole('combobox', { name: /Component/ })).toBeVisible();
-  await expect(queryRow.getByRole('combobox', { name: /Channel/ })).toBeVisible();
-  await expect(queryRow.getByRole('combobox', { name: /Source/ })).toBeVisible();
+  await expect(queryRow.getByTestId('query-editor-component')).toBeVisible();
+  await expect(queryRow.getByTestId('query-editor-channel')).toBeVisible();
+  await expect(queryRow.getByTestId('query-editor-source')).toBeVisible();
 });

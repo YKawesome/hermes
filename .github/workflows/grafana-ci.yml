@@ -137,7 +137,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.metadata.outputs.plugin-id }}-${{ steps.metadata.outputs.plugin-version }}
-          path: ${{ steps.metadata.outputs.plugin-id }}
+          path: nasa-hermes-datasource/${{ steps.metadata.outputs.plugin-id }}
           retention-days: 5
 
   resolve-versions:
@@ -154,11 +154,17 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read grafanaDependency from plugin.json
+        id: plugin-dep
+        run: |
+          DEP=$(jq -r '.dependencies.grafanaDependency' nasa-hermes-datasource/src/plugin.json)
+          echo "grafana-dependency=${DEP}" >> "$GITHUB_OUTPUT"
+
       - name: Resolve Grafana E2E versions
         id: resolve-versions
         uses: grafana/plugin-actions/e2e-version@e2e-version/v2.0.0
         with:
-          plugin-directory: ./nasa-hermes-datasource
+          grafana-dependency: ${{ steps.plugin-dep.outputs.grafana-dependency }}
 
   playwright-tests:
     needs: [resolve-versions, build]
