@@ -1,7 +1,8 @@
-package integration
+package plugin
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"math/rand"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	hermesGrpc "github.com/nasa/hermes/pkg/grpc"
 	pb "github.com/nasa/hermes/pkg/pb"
 )
@@ -33,6 +35,7 @@ func BenchmarkTimescaleQueries(b *testing.B) {
 
 	startTimescaleGrafana(b, ctx, hermesClient)
 	emitData(b, ctx, hermesClient)
+	query(b, ctx)
 }
 
 func startCommand(b *testing.B, ctx context.Context, dir, name string, args ...string) {
@@ -188,4 +191,63 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 			b.Logf("Emitted %d/%d seconds of data", timeSeconds, timeSecondsTotal)
 		}
 	}
+}
+
+func query(b *testing.B, ctx context.Context) {
+	pluginDB, err := sql.Open("postgres", timescaleConnStr)
+	if err != nil {
+		b.Fatalf("Grafana plugin failed to open database pool: %v", err)
+	}
+	defer pluginDB.Close()
+
+	ds := &Datasource{
+		db: pluginDB,
+	}
+
+	queryModel := queryModel{
+		QueryType:  "telemetry",
+		Components: []string{"TimescaleDB"},
+		Channels:   []string{"TestTelemetry1"},
+		Sources:    []string{},
+		TimeField:  "time",
+	}
+	queryJSON, err := json.Marshal(queryModel)
+	if err != nil {
+		b.Fatalf("Failed to marshal queryModel: %v", err)
+	}
+
+	timeNow := time.Now()
+	request := &backend.QueryDataRequest{
+		Queries: []backend.DataQuery{
+			{
+				RefID: "TestQueryId1",
+				JSON:  queryJSON,
+				TimeRange: backend.TimeRange{
+					From: timeNow.AddDate(-1, 0, 0),
+					To:   timeNow,
+				},
+				Interval: 1 * time.Second,
+			},
+		},
+	}
+
+	b.Log("Benchmarking queries")
+	b.Run("Query Benchmark", func(b *testing.B) {
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			response, err := ds.QueryData(ctx, request)
+			if err != nil {
+				b.Fatalf("Failed to query data: %v", err)
+			}
+
+			if queryResp, exists := response.Responses["TestQueryId1"]; exists {
+				if queryResp.Status != backend.StatusOK && queryResp.Error != nil {
+					b.Fatalf("Error returned by query data: %v", queryResp.Error)
+				}
+			} else {
+				b.Fatal("Missing expected data from query data")
+			}
+		}
+	})
 }
