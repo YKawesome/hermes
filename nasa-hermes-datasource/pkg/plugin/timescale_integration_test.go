@@ -257,8 +257,6 @@ func query(b *testing.B, ctx context.Context, db *sql.DB, name string) {
 	}
 
 	b.Run(name, func(b *testing.B) {
-		b.ResetTimer()
-
 		for i := 0; i < b.N; i++ {
 			response, err := ds.QueryData(ctx, request)
 			if err != nil {
