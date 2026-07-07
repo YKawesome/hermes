@@ -840,6 +840,16 @@ func (r *apiServer) SubEvent(filter *pb.BusFilter, s grpc.ServerStreamingServer[
 	return nil
 }
 
+func (r *apiServer) EmitEvent(ctx context.Context, e *pb.SourcedEvent) (*emptypb.Empty, error) {
+	if e == nil || e.Event == nil || e.Event.Ref == nil {
+		return nil, fmt.Errorf("invalid event packet payload struct")
+	}
+
+	host.Event.Emit(e)
+
+	return &emptypb.Empty{}, nil
+}
+
 // SubTelemetry implements pb.ApiServer.
 func (r *apiServer) SubTelemetry(filter *pb.BusFilter, s grpc.ServerStreamingServer[pb.SourcedTelemetry]) error {
 	// Validate filter
@@ -889,6 +899,16 @@ func (r *apiServer) SubTelemetry(filter *pb.BusFilter, s grpc.ServerStreamingSer
 	// This is a long running subscription until the context request cancellation
 	<-s.Context().Done()
 	return nil
+}
+
+func (r *apiServer) EmitTelemetry(ctx context.Context, t *pb.SourcedTelemetry) (*emptypb.Empty, error) {
+	if t == nil || t.Telemetry == nil || t.Telemetry.Ref == nil {
+		return nil, fmt.Errorf("invalid telemetry packet payload struct")
+	}
+
+	host.Telemetry.Emit(t)
+
+	return &emptypb.Empty{}, nil
 }
 
 // SubFileTransfer implements grpc.ApiServer.

@@ -94,6 +94,7 @@ func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient herme
 	waitPort(b, "localhost:5432")
 
 	b.Log("TimescaleDB Grafana Docker Started")
+	time.Sleep(10 * time.Second) // Dirty hack to make sure db starts
 	b.Log("Hermes connecting to TimescaleDB")
 
 	timescaleConfig := map[string]interface{}{
@@ -130,8 +131,8 @@ func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient herme
 }
 
 func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient) {
-	timeStart := time.Now().AddDate(-1, 0, 0)
-	timeSecondsTotal := 365 * 24 * 60 * 60
+	timeStart := time.Now().AddDate(0, 0, -1)
+	timeSecondsTotal := 1 * 24 * 60 * 60
 
 	sources := []string{"source-alpha", "source-beta"}
 
@@ -181,6 +182,10 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 			if _, err := hermesClient.EmitEvent(ctx, eventPacket); err != nil {
 				b.Fatalf("Hermes failed to emit event at index %d: %v", timeSeconds, err)
 			}
+		}
+
+		if timeSeconds%(60*60) == 0 {
+			b.Logf("Emitted %d/%d seconds of data", timeSeconds, timeSecondsTotal)
 		}
 	}
 }
