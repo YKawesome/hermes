@@ -33,15 +33,16 @@ func BenchmarkTimescaleQueries(b *testing.B) {
 
 	hermesClient := hermesGrpc.NewApiClient(hermesConn)
 
-	startTimescaleGrafana(b, ctx, hermesClient)
+	db := startTimescaleGrafana(b, ctx, hermesClient)
+	defer db.Close()
 
 	timeNow := time.Now()
 
 	emitData(b, ctx, hermesClient, timeNow.Add(-1*time.Hour), 1*time.Hour)
-	query(b, ctx, "1Hour")
+	query(b, ctx, db, "1Hour")
 
 	emitData(b, ctx, hermesClient, timeNow.Add(-24*time.Hour), 23*time.Hour)
-	query(b, ctx, "1Day")
+	query(b, ctx, db, "1Day")
 }
 
 func startCommand(b *testing.B, ctx context.Context, dir, name string, args ...string) {
@@ -93,7 +94,7 @@ func startHermesBackend(b *testing.B, ctx context.Context) *grpc.ClientConn {
 	return hermesConn
 }
 
-func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient) {
+func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient) *sql.DB {
 	b.Log("Starting TimescaleDB Grafana Docker")
 
 	runCommand(b, ctx, "../..", "docker", "compose", "up", "-d")
@@ -103,7 +104,13 @@ func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient herme
 	waitPort(b, "localhost:5432")
 
 	b.Log("TimescaleDB Grafana Docker Started")
+
 	time.Sleep(10 * time.Second) // Dirty hack to make sure db starts
+	db, err := sql.Open("postgres", timescaleConnStr)
+	if err != nil {
+		b.Fatalf("Failed to open database pool: %v", err)
+	}
+	b.Log("Connected to TimescaleDB")
 	b.Log("Hermes connecting to TimescaleDB")
 
 	timescaleConfig := map[string]interface{}{
@@ -137,6 +144,7 @@ func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient herme
 	}
 
 	b.Log("Hermes connected to TimescaleDB")
+	return db
 }
 
 func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient, timeStart time.Time, timeDuration time.Duration) {
@@ -214,15 +222,9 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 	}
 }
 
-func query(b *testing.B, ctx context.Context, name string) {
-	pluginDB, err := sql.Open("postgres", timescaleConnStr)
-	if err != nil {
-		b.Fatalf("Grafana plugin failed to open database pool: %v", err)
-	}
-	defer pluginDB.Close()
-
+func query(b *testing.B, ctx context.Context, db *sql.DB, name string) {
 	ds := &Datasource{
-		db: pluginDB,
+		db: db,
 	}
 
 	queryModel := queryModel{
