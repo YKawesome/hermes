@@ -34,8 +34,14 @@ func BenchmarkTimescaleQueries(b *testing.B) {
 	hermesClient := hermesGrpc.NewApiClient(hermesConn)
 
 	startTimescaleGrafana(b, ctx, hermesClient)
-	emitData(b, ctx, hermesClient)
-	query(b, ctx)
+
+	timeNow := time.Now()
+
+	emitData(b, ctx, hermesClient, timeNow.Add(-1*time.Hour), 1*time.Hour)
+	query(b, ctx, "1Hour")
+
+	emitData(b, ctx, hermesClient, timeNow.Add(-24*time.Hour), 23*time.Hour)
+	query(b, ctx, "1Day")
 }
 
 func startCommand(b *testing.B, ctx context.Context, dir, name string, args ...string) {
@@ -133,9 +139,8 @@ func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient herme
 	b.Log("Hermes connected to TimescaleDB")
 }
 
-func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient) {
-	timeStart := time.Now().AddDate(0, 0, -1)
-	timeSecondsTotal := 1 * 24 * 60 * 60
+func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClient, timeStart time.Time, timeDuration time.Duration) {
+	timeSecondsTotal := int(timeDuration.Seconds())
 
 	sources := []string{"source-alpha", "source-beta"}
 
@@ -193,7 +198,7 @@ func emitData(b *testing.B, ctx context.Context, hermesClient hermesGrpc.ApiClie
 	}
 }
 
-func query(b *testing.B, ctx context.Context) {
+func query(b *testing.B, ctx context.Context, name string) {
 	pluginDB, err := sql.Open("postgres", timescaleConnStr)
 	if err != nil {
 		b.Fatalf("Grafana plugin failed to open database pool: %v", err)
@@ -231,8 +236,7 @@ func query(b *testing.B, ctx context.Context) {
 		},
 	}
 
-	b.Log("Benchmarking queries")
-	b.Run("Query Benchmark", func(b *testing.B) {
+	b.Run(name, func(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
