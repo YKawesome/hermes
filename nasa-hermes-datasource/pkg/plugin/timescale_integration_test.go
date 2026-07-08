@@ -71,8 +71,7 @@ func runCommand(b *testing.B, ctx context.Context, dir, name string, args ...str
 
 func waitPort(b *testing.B, target string) {
 	for range 10 {
-		conn, err := net.DialTimeout("tcp", target, 500*time.Millisecond)
-		if err == nil {
+		if conn, err := net.DialTimeout("tcp", target, 500*time.Millisecond); err == nil {
 			_ = conn.Close()
 			return
 		}
@@ -106,12 +105,19 @@ func startTimescaleGrafana(b *testing.B, ctx context.Context, hermesClient herme
 	waitPort(b, "localhost:5432")
 
 	b.Log("TimescaleDB Grafana Docker Started")
+	b.Log("Connecting to TimescaleDB")
 
-	time.Sleep(10 * time.Second) // Dirty hack to make sure db starts
 	db, err := sql.Open("postgres", timescaleConnStr)
 	if err != nil {
 		b.Fatalf("Failed to open database pool: %v", err)
 	}
+	for range 10 {
+		if err := db.PingContext(ctx); err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
 	b.Log("Connected to TimescaleDB")
 	b.Log("Hermes connecting to TimescaleDB")
 
