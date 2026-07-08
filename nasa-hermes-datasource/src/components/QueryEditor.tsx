@@ -31,13 +31,28 @@ function valueToKeyRef(v: string): KeyRef {
 function toKeyOptions(entries: KeyRef[]): Array<ComboboxOption<string>> {
   return entries.map((e) => ({
     label: e.key,
-    description: `${e.component}.${e.channel}`,
     value: keyRefToValue(e),
   }));
 }
 
 function keyValues(keys: KeyRef[]): string[] {
   return keys.map(keyRefToValue);
+}
+
+function channelKeyId(component: string, channel: string): string {
+  return `${component}\0${channel}`;
+}
+
+function groupKeysByChannel(entries: KeyRef[]): Record<string, KeyRef[]> {
+  const grouped: Record<string, KeyRef[]> = {};
+  for (const e of entries) {
+    const id = channelKeyId(e.component, e.channel);
+    if (!grouped[id]) {
+      grouped[id] = [];
+    }
+    grouped[id].push(e);
+  }
+  return grouped;
 }
 
 function channelToKey(ch: ChannelRef): string {
@@ -66,7 +81,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   // Telemetry state
   const [channelOptions, setChannelOptions] = useState<Array<ComboboxOption<string>>>([]);
   const [sourceOptions, setSourceOptions] = useState<Array<ComboboxOption<string>>>([]);
-  const [keyOptions, setKeyOptions] = useState<Array<ComboboxOption<string>>>([]);
+  const [keysByChannel, setKeysByChannel] = useState<Record<string, KeyRef[]>>({});
 
   const [channelLoading, setChannelLoading] = useState(false);
   const [sourceLoading, setSourceLoading] = useState(false);
@@ -112,10 +127,19 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     }
   };
 
-  const onKeyChange = (options: Array<ComboboxOption<string>>) => {
-    const updated: MyQuery = { ...query, keys: options.map(({ value }) => valueToKeyRef(value)) };
+  const onChannelKeyChange = (chComponent: string, chName: string, options: Array<ComboboxOption<string>>) => {
+    const id = channelKeyId(chComponent, chName);
+    const newKeys = options.map(({ value }) => valueToKeyRef(value));
+    const otherKeys = (query.keys ?? []).filter(
+      (k) => channelKeyId(k.component, k.channel) !== id
+    );
+
+    const channels = newKeys.length === 0
+      ? (query.channels ?? []).filter((ch) => !(ch.component === chComponent && ch.name === chName))
+      : query.channels;
+    const updated: MyQuery = { ...query, channels, keys: [...otherKeys, ...newKeys] };
     onChange(updated);
-    if (updated.channels && updated.channels.length) {
+    if (updated.channels.length) {
       onRunQuery();
     }
   };
@@ -169,19 +193,40 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   useEffect(() => {
     if (queryType !== 'telemetry' || !query.channels || !query.channels.length) {
-      setTimeout(() => setKeyOptions([]), 0);
+      setTimeout(() => setKeysByChannel({}), 0);
       return;
     }
     const loadKeys = async () => {
       setKeyLoading(true);
       datasource
         .getKeys(query.channels)
-        .then((entries) => setKeyOptions(toKeyOptions(entries)))
-        .catch(() => setKeyOptions([]))
+        .then((entries) => setKeysByChannel(groupKeysByChannel(entries)))
+        .catch(() => setKeysByChannel({}))
         .finally(() => setKeyLoading(false));
     }
     loadKeys();
   }, [datasource, queryType, query.channels]);
+
+  useEffect(() => {
+    const currentKeys = query.keys ?? [];
+    let added = false;
+    const newKeys = [...currentKeys];
+    for (const [id, chKeys] of Object.entries(keysByChannel)) {
+      if (chKeys.length <= 1) {
+        continue;
+      }
+      const hasSelection = currentKeys.some(
+        (k) => channelKeyId(k.component, k.channel) === id
+      );
+      if (!hasSelection) {
+        newKeys.push(...chKeys);
+        added = true;
+      }
+    }
+    if (added) {
+      onChange({ ...query, keys: newKeys });
+    }
+  }, [keysByChannel, query, onChange]);
 
   // --- Event data loading ---
 
@@ -215,7 +260,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
       {queryType === 'telemetry' && (
         <>
-          <InlineField label="Channel" labelWidth={16} tooltip="Telemetry channel name" required>
+          <InlineField label="Channel" labelWidth={16} tooltip="Telemetry channel name" grow={true} required>
             <MultiCombobox
               id="query-editor-channel"
               data-testid="query-editor-channel"
@@ -224,10 +269,9 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               onChange={onChannelChange}
               loading={channelLoading}
               placeholder="Select channel"
-              width={56}
             />
           </InlineField>
-          <InlineField label="Source" labelWidth={16} tooltip="FSW source identifier (optional)">
+          <InlineField label="Source" labelWidth={16} tooltip="FSW source identifier (optional)" grow={true}>
             <MultiCombobox
               id="query-editor-source"
               data-testid="query-editor-source"
@@ -237,24 +281,36 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               isClearable
               loading={sourceLoading}
               placeholder="All sources"
-              width={56}
             />
           </InlineField>
-          {keyOptions.length > 1 && (
-            <InlineField label="Key" labelWidth={16} tooltip="Value field path for compound channels">
-              <MultiCombobox
-                id="query-editor-key"
-                data-testid="query-editor-key"
-                options={keyOptions}
-                value={keyValues(query.keys ?? [])}
-                onChange={onKeyChange}
-                isClearable
-                loading={keyLoading}
-                placeholder="All keys"
-                width={56}
-              />
-            </InlineField>
-          )}
+          {Object.entries(keysByChannel)
+            .filter(([, keys]) => keys.length > 1)
+            .map(([id, keys]) => {
+              const { component: chComp, channel: chName } = keys[0];
+              const chLabel = `${chComp}.${chName}`;
+              const selectedForChannel = (query.keys ?? []).filter(
+                (k) => channelKeyId(k.component, k.channel) === id
+              );
+              return (
+                <InlineField
+                  key={id}
+                  label={chLabel}
+                  tooltip={`Value field path for ${chLabel}`}
+                  grow={true}
+                >
+                  <MultiCombobox
+                    id={`query-editor-key-${id}`}
+                    data-testid={`query-editor-key-${id}`}
+                    options={toKeyOptions(keys)}
+                    value={keyValues(selectedForChannel)}
+                    onChange={(opts) => onChannelKeyChange(chComp, chName, opts)}
+                    isClearable
+                    loading={keyLoading}
+                    placeholder="All keys"
+                  />
+                </InlineField>
+              );
+            })}
         </>
       )}
 
