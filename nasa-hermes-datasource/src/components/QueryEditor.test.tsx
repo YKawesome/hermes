@@ -71,13 +71,13 @@ describe('QueryEditor — Telemetry', () => {
       <QueryEditor
         {...buildProps({
           datasource: ds,
-          query: { refId: 'A', queryType: 'telemetry', channels: [ch('CDH', 'Attitude')], sources: [], keys: [] } as MyQuery,
+          query: { refId: 'A', queryType: 'telemetry', channels: [ch('CDH', 'Temperature')], sources: [], keys: [] } as MyQuery,
         })}
       />
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: /Key/ })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /CDH\.Temperature/ })).toBeInTheDocument();
     });
   });
 
@@ -98,7 +98,7 @@ describe('QueryEditor — Telemetry', () => {
       expect(ds.getKeys).toHaveBeenCalled();
     });
 
-    expect(screen.queryByRole('combobox', { name: /Key/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /CDH\.Temperature/ })).not.toBeInTheDocument();
   });
 
   it('loads source options on mount', async () => {
@@ -171,8 +171,68 @@ describe('QueryEditor — Telemetry', () => {
     expect(screen.getByText('fsw-1')).toBeInTheDocument();
 
     await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /CDH\.Attitude/ })).toBeInTheDocument();
       expect(screen.getByText('value.x')).toBeInTheDocument();
     });
+  });
+
+  it('renders per-channel key dropdowns for two compound channels', async () => {
+    const ds = mockDatasource({
+      getKeys: jest.fn().mockResolvedValue([
+        { component: 'CDH', channel: 'Attitude', key: 'value' },
+        { component: 'CDH', channel: 'Attitude', key: 'value.x' },
+        { component: 'Sensors', channel: 'IMU', key: 'value' },
+        { component: 'Sensors', channel: 'IMU', key: 'value.roll' },
+      ]),
+    });
+    render(
+      <QueryEditor
+        {...buildProps({
+          datasource: ds,
+          query: {
+            refId: 'A',
+            queryType: 'telemetry',
+            channels: [ch('CDH', 'Attitude'), ch('Sensors', 'IMU')],
+            sources: [],
+            keys: [],
+          } as MyQuery,
+        })}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /CDH\.Attitude/ })).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /Sensors\.IMU/ })).toBeInTheDocument();
+    });
+  });
+
+  it('shows key dropdown only for compound channel when mixed with scalar', async () => {
+    const ds = mockDatasource({
+      getKeys: jest.fn().mockResolvedValue([
+        { component: 'CDH', channel: 'Attitude', key: 'value' },
+        { component: 'CDH', channel: 'Attitude', key: 'value.x' },
+        { component: 'CDH', channel: 'Temperature', key: 'value' },
+      ]),
+    });
+    render(
+      <QueryEditor
+        {...buildProps({
+          datasource: ds,
+          query: {
+            refId: 'A',
+            queryType: 'telemetry',
+            channels: [ch('CDH', 'Attitude'), ch('CDH', 'Temperature')],
+            sources: [],
+            keys: [],
+          } as MyQuery,
+        })}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /CDH\.Attitude/ })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('combobox', { name: /CDH\.Temperature/ })).not.toBeInTheDocument();
   });
 
   it('handles resource fetch errors gracefully', async () => {
