@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+
+	"github.com/lib/pq"
 )
 
 func scanStrings(rows *sql.Rows) ([]string, error) {
@@ -54,13 +56,13 @@ type channelEntry struct {
 }
 
 func (d *Datasource) handleGetTelemetryChannels(w http.ResponseWriter, r *http.Request) {
-	channelsMap := make(map[channelEntry]bool)
+	channelMap := make(map[channelEntry]bool)
 
 	d.hermes.mu.RLock()
 	for _, dict := range d.hermes.dicts {
 		for _, ns := range dict.GetContent() {
 			for _, telemetryDef := range ns.Telemetry {
-				channelsMap[channelEntry{
+				channelMap[channelEntry{
 					Component: telemetryDef.GetComponent(),
 					Name:      telemetryDef.GetName(),
 				}] = true
@@ -70,11 +72,11 @@ func (d *Datasource) handleGetTelemetryChannels(w http.ResponseWriter, r *http.R
 	d.hermes.mu.RUnlock()
 
 	channels := []channelEntry{}
-	for entry := range channelsMap {
+	for entry := range channelMap {
 		channels = append(channels, entry)
 	}
 
-	writeJSONResponse(w, channelsMap)
+	writeJSONResponse(w, channelMap)
 }
 
 func (d *Datasource) handleGetTelemetrySources(w http.ResponseWriter, r *http.Request) {
@@ -105,37 +107,66 @@ func (d *Datasource) handleGetTelemetryKeys(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	compSet := make(map[string]bool)
-	for _, c := range components {
-		compSet[c] = true
-	}
-	chanSet := make(map[string]bool)
-	for _, c := range channels {
-		chanSet[c] = true
-	}
+	// I dont see a way to get keys from the dictionary.
+	// compSet := make(map[string]bool)
+	// for _, c := range components {
+	// 	compSet[c] = true
+	// }
+	// chanSet := make(map[string]bool)
+	// for _, c := range channels {
+	// 	chanSet[c] = true
+	// }
 
-	uniqueKeys := make(map[string]bool)
+	// keyMap := make(map[string]bool)
 
-	d.hermes.mu.RLock()
-	for _, dict := range d.hermes.dicts {
-		for _, ns := range dict.GetContent() {
-			for _, telemetryDef := range ns.Telemetry {
-				if compSet[telemetryDef.GetComponent()] && chanSet[telemetryDef.GetName()] {
-					// Iterates over telemetry parameters defined in your proto models
-					for _, arg := range telemetryDef.GetArgs() {
-						if arg.GetName() != "" {
-							uniqueKeys[arg.GetName()] = true
-						}
-					}
-				}
-			}
+	// d.hermes.mu.RLock()
+	// for _, dict := range d.hermes.dicts {
+	// 	for _, ns := range dict.GetContent() {
+	// 		for _, telemetryDef := range ns.Telemetry {
+	// 			if compSet[telemetryDef.GetComponent()] && chanSet[telemetryDef.GetName()] {
+	// 				for _, arg := range telemetryDef.GetArgs() {
+	// 					if arg.GetName() != "" {
+	// 						keyMap[arg.GetName()] = true
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+	// d.hermes.mu.RUnlock()
+
+	// keys := make([]keyEntry, 0, len(keyMap))
+	// for k := range keyMap {
+	// 	keys = append(keys, keyEntry{Key: k})
+	// }
+
+	query := `
+		SELECT DISTINCT d.component, d.name, t.key 
+		FROM telemetry t
+		JOIN telemetryDefs d ON t.telemetryDefId = d.id
+		WHERE d.component = ANY($1) AND d.name = ANY($2) AND t.key IS NOT NULL
+		ORDER BY d.component, d.name, t.key
+		LIMIT 200;`
+
+	rows, err := d.db.QueryContext(r.Context(), query, pq.Array(components), pq.Array(channels))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer func() { _ = rows.Close() }()
+
+	items := []keyEntry{}
+	for rows.Next() {
+		var entry keyEntry
+		if err := rows.Scan(&entry.Component, &entry.Channel, &entry.Key); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		items = append(items, entry)
 	}
-	d.hermes.mu.RUnlock()
-
-	items := make([]keyEntry, 0, len(uniqueKeys))
-	for k := range uniqueKeys {
-		items = append(items, keyEntry{Key: k})
+	if err := rows.Err(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	writeJSONResponse(w, items)
