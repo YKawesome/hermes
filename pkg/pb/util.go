@@ -26,6 +26,7 @@ func (e *EventDef) ToRef() *EventRef {
 		Severity:   e.GetSeverity(),
 		Arguments:  e.ArgNames(),
 		Dictionary: "", // TODO(tumbar) Is there an easy way to fill this
+		Version:    "", // TODO: One more thing to fill :)
 	}
 }
 
@@ -35,5 +36,6 @@ func (e *TelemetryDef) ToRef() *TelemetryRef {
 		Component:  e.GetComponent(),
 		Name:       e.GetName(),
 		Dictionary: "", // TODO(tumbar) Is there an easy way to fill this
+		Version:    "", // TODO: One more thing to fill :)
 	}
 }

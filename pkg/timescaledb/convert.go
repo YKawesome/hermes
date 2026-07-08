@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	insertEventDefSQL = `INSERT INTO eventDefs (id, component, name, severity, args)
-		VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`
+	insertEventDefSQL = `INSERT INTO eventDefs (id, version, component, name, severity, args)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`
 	insertEventSQL = `INSERT INTO events (eventDefId, time, timeSclk, message, source, args, ert)
 		VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`
-	insertTelemetryDefSQL = `INSERT INTO telemetryDefs (id, name, component)
-		VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+	insertTelemetryDefSQL = `INSERT INTO telemetryDefs (id, version, name, component)
+		VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`
 	insertTelemetrySQL = `INSERT INTO telemetry (time, telemetryDefId, timeSclk, source, labels, key, valueType, integral, floating, boolval, string, bytes, ert)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT DO NOTHING`
 )
