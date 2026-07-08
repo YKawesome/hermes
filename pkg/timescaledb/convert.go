@@ -60,7 +60,7 @@ func InsertEvent(ctx context.Context, db *sql.DB, msg *pb.SourcedEvent) error {
 
 	ref := event.GetRef()
 	if _, err := tx.ExecContext(ctx, insertEventDefSQL,
-		ref.GetId(), ref.GetComponent(), ref.GetName(), ref.GetSeverity(), string(defArgs),
+		ref.GetId(), ref.GetVersion(), ref.GetComponent(), ref.GetName(), ref.GetSeverity(), string(defArgs),
 	); err != nil {
 		return fmt.Errorf("failed to insert event def: %w", err)
 	}
@@ -91,7 +91,7 @@ func InsertTelemetry(ctx context.Context, db *sql.DB, msg *pb.SourcedTelemetry) 
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, insertTelemetryDefSQL,
-		def.GetId(), def.GetName(), def.GetComponent(),
+		def.GetId(), def.GetVersion(), def.GetName(), def.GetComponent(),
 	); err != nil {
 		return fmt.Errorf("failed to insert telemetry def: %w", err)
 	}
