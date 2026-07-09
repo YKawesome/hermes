@@ -15534,6 +15534,7 @@ $root.hermes = (function() {
          * @property {Array.<string>|null} [forwards] Fsw forwards
          * @property {Array.<hermes.FswCapability>|null} [capabilities] Fsw capabilities
          * @property {string|null} [dictionary] Fsw dictionary
+         * @property {string|null} [version] Fsw version
          */
 
         /**
@@ -15602,6 +15603,14 @@ $root.hermes = (function() {
         Fsw.prototype.dictionary = "";
 
         /**
+         * Fsw version.
+         * @member {string} version
+         * @memberof hermes.Fsw
+         * @instance
+         */
+        Fsw.prototype.version = "";
+
+        /**
          * Creates a new Fsw instance using the specified properties.
          * @function create
          * @memberof hermes.Fsw
@@ -15642,6 +15651,8 @@ $root.hermes = (function() {
             }
             if (message.dictionary != null && Object.hasOwnProperty.call(message, "dictionary"))
                 writer.uint32(/* id 8, wireType 2 =*/66).string(message.dictionary);
+            if (message.version != null && Object.hasOwnProperty.call(message, "version"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.version);
             return writer;
         };
 
@@ -15707,6 +15718,10 @@ $root.hermes = (function() {
                     }
                 case 8: {
                         message.dictionary = reader.string();
+                        break;
+                    }
+                case 9: {
+                        message.version = reader.string();
                         break;
                     }
                 default:
@@ -15779,6 +15794,9 @@ $root.hermes = (function() {
             if (message.dictionary != null && message.hasOwnProperty("dictionary"))
                 if (!$util.isString(message.dictionary))
                     return "dictionary: string expected";
+            if (message.version != null && message.hasOwnProperty("version"))
+                if (!$util.isString(message.version))
+                    return "version: string expected";
             return null;
         };
 
@@ -15846,6 +15864,8 @@ $root.hermes = (function() {
             }
             if (object.dictionary != null)
                 message.dictionary = String(object.dictionary);
+            if (object.version != null)
+                message.version = String(object.version);
             return message;
         };
 
@@ -15871,6 +15891,7 @@ $root.hermes = (function() {
                 object.type = "";
                 object.profileId = "";
                 object.dictionary = "";
+                object.version = "";
             }
             if (message.id != null && message.hasOwnProperty("id"))
                 object.id = message.id;
@@ -15890,6 +15911,8 @@ $root.hermes = (function() {
             }
             if (message.dictionary != null && message.hasOwnProperty("dictionary"))
                 object.dictionary = message.dictionary;
+            if (message.version != null && message.hasOwnProperty("version"))
+                object.version = message.version;
             return object;
         };
 

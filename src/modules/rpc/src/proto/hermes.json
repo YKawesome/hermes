@@ -1079,6 +1079,10 @@
             "dictionary": {
               "type": "string",
               "id": 8
+            },
+            "version": {
+              "type": "string",
+              "id": 9
             }
           },
           "reserved": [

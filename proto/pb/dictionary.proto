@@ -212,7 +212,7 @@ message DictionaryHead {
   // Name given to dictionary, can be changed by the user
   string name = 2;
 
-  // (optional) Dictionary/FSW release version
+  // Dictionary/FSW release version
   string version = 3;
 }
 

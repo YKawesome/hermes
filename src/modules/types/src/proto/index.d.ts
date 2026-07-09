@@ -5775,6 +5775,9 @@ export namespace hermes {
 
         /** Fsw dictionary */
         dictionary?: (string|null);
+
+        /** Fsw version */
+        version?: (string|null);
     }
 
     /** Represents a Fsw. */
@@ -5803,6 +5806,9 @@ export namespace hermes {
 
         /** Fsw dictionary. */
         public dictionary: string;
+
+        /** Fsw version. */
+        public version: string;
 
         /**
          * Creates a new Fsw instance using the specified properties.
