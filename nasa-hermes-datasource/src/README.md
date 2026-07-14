@@ -8,14 +8,14 @@
 
 ## Overview
 
-**Hermes** is a Grafana backend datasource plugin that connects to a [TimescaleDB](https://www.timescale.com/) database to query and visualize **telemetry** and **event** data from NASA's Hermes flight software (FSW) system.
+**Hermes** is a Grafana backend datasource plugin that connects to a [TimescaleDB](https://www.timescale.com/) database to query and visualize **telemetry** and **events** data from NASA's [Hermes ground data system (GDS)](https://github.com/nasa/hermes).
 
-The plugin provides a multi-select query editor for browsing FSW channels, making it easy to build dashboards over spacecraft telemetry and event streams without writing raw SQL. Multiple channels, sources, and keys can be selected in a single query to overlay or compare data series, and there is support for custom queries.
+The plugin provides a multi-select query editor for querying events and telemetry, making it easy to build dashboards over spacecraft telemetry and event streams without writing raw SQL. Multiple telemetry channels, sources, and keys can be selected in a single query to overlay or compare data series. Additionally you can write custom SQL queries.
 
 ## Requirements
 
 - **Grafana** >= 12.3.0
-- **TimescaleDB** (PostgreSQL with the TimescaleDB extension); the plugin expects the Hermes schema (`telemetryDefs`, `telemetry`, `eventDefs`, `events` tables/hypertables) to already exist in the target database.
+- **TimescaleDB** (PostgreSQL with the TimescaleDB extension); the plugin expects the Hermes schema (`telemetryDefs`, `telemetry`, `eventDefs`, `events` tables/hypertables) to already exist in the target database. See [Hermes](https://github.com/nasa/hermes) for help.
 
 ## Getting Started
 
@@ -37,12 +37,12 @@ Create a new panel and select **Hermes**. Use the **Builder / Code** toggle at t
 
 Select **Telemetry** in the bottom-right toggle. Queries time-series values from the `telemetry` hypertable.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| **Channel** | multi-select, required | One or more `component.channel` pairs. Each unique combination produces its own data frame. |
-| **Aggregation** | select | Function applied per time bucket: `Average`, `Min`, `Max`, `Count`, `First`, `Last`, `Sum`, `Derivative`, `Raw (none)`. |
-| **Source** | multi-select, optional | FSW source identifier. Leave empty to include all sources. |
-| **Keys** | multi-select, optional | Sub-field paths for compound (object/array) channels. Appears per-channel only when multiple keys exist. Leave empty to include all keys. |
+| Field           | Type                   | Description                                                                                                                               |
+| --------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Channel**     | multi-select, required | One or more `component.channel` pairs. Each unique combination produces its own data frame.                                               |
+| **Aggregation** | select                 | Function applied per time bucket: `Average`, `Min`, `Max`, `Count`, `First`, `Last`, `Sum`, `Derivative`, `Raw (none)`.                   |
+| **Source**      | multi-select, optional | FSW source identifier. Leave empty to include all sources.                                                                                |
+| **Keys**        | multi-select, optional | Sub-field paths for compound (object/array) channels. Appears per-channel only when multiple keys exist. Leave empty to include all keys. |
 
 <br>
 
@@ -50,8 +50,8 @@ Select **Telemetry** in the bottom-right toggle. Queries time-series values from
 
 Select **Events** in the bottom-right toggle. Returns event log entries with fields: timestamp, component, name, severity, message, source, args.
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field      | Type                   | Description                                                |
+| ---------- | ---------------------- | ---------------------------------------------------------- |
 | **Source** | multi-select, optional | FSW source identifier. Leave empty to include all sources. |
 
 <br>
@@ -60,9 +60,9 @@ Select **Events** in the bottom-right toggle. Returns event log entries with fie
 
 Available for both query types:
 
-| Field | Description |
-|-------|-------------|
-| **Time Field** | `Receive Time` (ERT) or `On-board Time` (spacecraft clock) |
+| Field                  | Description                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Time Field**         | `Receive Time` (ERT) or `On-board Time` (spacecraft clock)                                             |
 | **From / To Override** | *(Advanced, collapsible)* Pin the query to an absolute time range, ignoring the dashboard time picker. |
 
 <br>

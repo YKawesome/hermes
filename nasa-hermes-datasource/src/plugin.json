@@ -7,7 +7,7 @@
   "backend": true,
   "executable": "gpx_hermes_datasource",
   "info": {
-    "description": "Datasource Plugin for JPL-NASA's Hermes ",
+    "description": "Datasource Plugin for NASA's Hermes lightweight ground data system",
     "author": {
       "name": "NASA Jet Propulsion Laboratory"
     },
