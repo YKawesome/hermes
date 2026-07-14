@@ -7,6 +7,7 @@ test('smoke: should render config editor', async ({ createDataSourceConfigPage, 
   await expect(page.getByRole('textbox', { name: 'Host' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'User' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Database' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Hermes' })).toBeVisible();
 });
 test('"Save & test" should be successful when configuration is valid', async ({
   createDataSourceConfigPage,
@@ -19,6 +20,7 @@ test('"Save & test" should be successful when configuration is valid', async ({
   await page.getByRole('textbox', { name: 'User' }).fill(ds.jsonData.user ?? '');
   await page.locator('#config-editor-password').fill(ds.secureJsonData?.password ?? '');
   await page.getByRole('textbox', { name: 'Database' }).fill(ds.jsonData.database ?? '');
+  await page.getByRole('textbox', { name: 'Hermes' }).fill(ds.jsonData.hermes ?? '');
   await expect(configPage.saveAndTest()).toBeOK();
 });
 
