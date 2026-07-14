@@ -1,0 +1,20 @@
+services:
+  grafana:
+    extends:
+      file: .config/docker-compose-base.yaml
+      service: grafana
+    restart: unless-stopped
+    depends_on:
+      - timescaledb
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: hermes
+    ports:
+      - 5432:5432/tcp
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+volumes:
+  timescale-data:
