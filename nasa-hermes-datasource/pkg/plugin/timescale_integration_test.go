@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"net"
 	"os/exec"
@@ -235,28 +236,42 @@ func query(b *testing.B, ctx context.Context, db *sql.DB, name string) {
 		db: db,
 	}
 
+	timeNow := time.Now()
+	rawSql := fmt.Sprintf(`
+SELECT
+	time_bucket($__interval, t.ert) AS time_bucket,
+	d.component,
+	d.name,
+	t.source,
+	t.valueType,
+	t.key,
+	AVG(t.integral::double precision) AS val_int,
+	AVG(t.floating::double precision) AS val_float,
+	AVG(t.boolval::int::double precision) AS val_bool,
+	MAX(t.string) AS val_str
+FROM telemetryDefs d
+JOIN telemetry t ON t.telemetryDefId = d.id
+WHERE ((d.component = 'TimescaleDB' AND d.name = 'TestTelemetry1'))
+  AND ('{}'::text[] = '{}' OR t.source = ANY('{}'))
+  AND t.ert >= '%s' AND t.ert <= '%s'
+GROUP BY time_bucket, d.component, d.name, t.source, t.valueType, t.key
+ORDER BY time_bucket ASC;`, timeNow.AddDate(-1, 0, 0).Format(time.RFC3339Nano), timeNow.Format(time.RFC3339Nano))
+
 	queryModel := queryModel{
-		QueryType:  "telemetry",
-		Components: []string{"TimescaleDB"},
-		Channels:   []string{"TestTelemetry1"},
-		Sources:    []string{},
-		TimeField:  "time",
+		QueryType: "telemetry",
+		TimeField: "time",
+		RawSql:    &rawSql,
 	}
 	queryJSON, err := json.Marshal(queryModel)
 	if err != nil {
 		b.Fatalf("Failed to marshal queryModel: %v", err)
 	}
 
-	timeNow := time.Now()
 	request := &backend.QueryDataRequest{
 		Queries: []backend.DataQuery{
 			{
-				RefID: "TestQueryId1",
-				JSON:  queryJSON,
-				TimeRange: backend.TimeRange{
-					From: timeNow.AddDate(-1, 0, 0),
-					To:   timeNow,
-				},
+				RefID:    "TestQueryId1",
+				JSON:     queryJSON,
 				Interval: 1 * time.Second,
 			},
 		},
