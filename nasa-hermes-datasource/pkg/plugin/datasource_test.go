@@ -91,23 +91,8 @@ func TestQueryDispatch(t *testing.T) {
 		}
 	})
 
-	t.Run("returns empty response for telemetry with missing component", func(t *testing.T) {
-		qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", Channels: []string{"ch1"}, TimeField: "time"})
-		resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
-			Queries: []backend.DataQuery{
-				{RefID: "A", JSON: qJSON},
-			},
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(resp.Responses["A"].Frames) != 0 {
-			t.Errorf("expected no frames for missing component, got %d", len(resp.Responses["A"].Frames))
-		}
-	})
-
 	t.Run("returns empty response for telemetry with missing channel", func(t *testing.T) {
-		qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", Components: []string{"comp1"}, TimeField: "time"})
+		qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", TimeField: "time", Aggregation: "avg"})
 		resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
 			Queries: []backend.DataQuery{
 				{RefID: "A", JSON: qJSON},
@@ -126,7 +111,7 @@ func TestQueryDataMultipleQueries(t *testing.T) {
 	ds := Datasource{}
 
 	q1, _ := json.Marshal(queryModel{QueryType: "unknown"})
-	q2, _ := json.Marshal(queryModel{QueryType: "telemetry", Components: []string{"comp"}, TimeField: "time"})
+	q2, _ := json.Marshal(queryModel{QueryType: "telemetry", TimeField: "time", Aggregation: "avg"})
 
 	resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
 		Queries: []backend.DataQuery{
@@ -148,36 +133,6 @@ func TestQueryDataMultipleQueries(t *testing.T) {
 	}
 }
 
-func TestQueryTimeOverrides(t *testing.T) {
-	ds := Datasource{}
-
-	// Telemetry with empty component returns early before DB, so time overrides are
-	// parsed but don't cause errors — this verifies the parse path doesn't panic.
-	overrideFrom := "2024-01-01T00:00:00Z"
-	overrideJSON, _ := json.Marshal(queryModel{
-		QueryType:        "telemetry",
-		TimeField:        "time",
-		TimeOverrideFrom: overrideFrom,
-		TimeOverrideTo:   "2024-12-31T23:59:59Z",
-	})
-
-	resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
-		Queries: []backend.DataQuery{
-			{RefID: "A", JSON: overrideJSON, TimeRange: backend.TimeRange{
-				From: time.Now().Add(-1 * time.Hour),
-				To:   time.Now(),
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// Should return empty (no component), no error
-	if resp.Responses["A"].Status != 0 {
-		t.Errorf("expected no error status, got %v", resp.Responses["A"].Status)
-	}
-}
-
 func TestBuildResponseIntType(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -193,15 +148,15 @@ func TestBuildResponseIntType(t *testing.T) {
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
 	resultRows, _ := db.Query("SELECT")
-	qm := queryModel{Components: []string{"comp"}, Channels: []string{"ch"}, TimeField: "time"}
-	resp := buildResponse(qm, resultRows, backend.DataResponse{})
+	qm := queryModel{Channels: []channelRef{{"comp", "ch"}}, TimeField: "time", Aggregation: "avg"}
+	resp := buildResponse(qm, resultRows)
 
 	if len(resp.Frames) != 1 {
 		t.Fatalf("expected 1 frame, got %d", len(resp.Frames))
 	}
 	frame := resp.Frames[0]
-	if frame.Name != "comp.ch./time(src)" {
-		t.Errorf("expected frame name 'comp.ch./time(src)', got %q", frame.Name)
+	if frame.Name != "comp.ch" {
+		t.Errorf("expected frame name 'comp.ch', got %q", frame.Name)
 	}
 	if len(frame.Fields) != 2 {
 		t.Fatalf("expected 2 fields, got %d", len(frame.Fields))
@@ -231,8 +186,8 @@ func TestBuildResponseUintType(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	qm := queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "time"}
-	resp := buildResponse(qm, resultRows, backend.DataResponse{})
+	qm := queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "time", Aggregation: "avg"}
+	resp := buildResponse(qm, resultRows)
 
 	if len(resp.Frames) != 1 || resp.Frames[0].Fields[0].Len() != 1 {
 		t.Fatal("expected 1 frame with 1 row")
@@ -256,7 +211,7 @@ func TestBuildResponseFloatType(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	resp := buildResponse(queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "time"}, resultRows, backend.DataResponse{})
+	resp := buildResponse(queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "time", Aggregation: "avg"}, resultRows)
 
 	val := resp.Frames[0].Fields[1].At(0).(*float64)
 	if *val != 3.14 {
@@ -278,7 +233,7 @@ func TestBuildResponseBoolType(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	resp := buildResponse(queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "time"}, resultRows, backend.DataResponse{})
+	resp := buildResponse(queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "time", Aggregation: "avg"}, resultRows)
 
 	v1 := resp.Frames[0].Fields[1].At(0).(*bool)
 	v2 := resp.Frames[0].Fields[1].At(1).(*bool)
@@ -303,7 +258,7 @@ func TestBuildResponseStringType(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	resp := buildResponse(queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "time"}, resultRows, backend.DataResponse{})
+	resp := buildResponse(queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "time", Aggregation: "avg"}, resultRows)
 
 	val := resp.Frames[0].Fields[1].At(0).(*string)
 	if *val != "hello" {
@@ -325,7 +280,7 @@ func TestBuildResponseEnumType(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	resp := buildResponse(queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "time"}, resultRows, backend.DataResponse{})
+	resp := buildResponse(queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "time", Aggregation: "avg"}, resultRows)
 
 	val := resp.Frames[0].Fields[1].At(0).(*string)
 	if *val != "MY_ENUM_VAL" {
@@ -347,7 +302,7 @@ func TestBuildResponseNullValues(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	resp := buildResponse(queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "time"}, resultRows, backend.DataResponse{})
+	resp := buildResponse(queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "time", Aggregation: "avg"}, resultRows)
 
 	val := resp.Frames[0].Fields[1].At(0)
 	if val != (*float64)(nil) {
@@ -366,7 +321,7 @@ func TestBuildResponseEmptyRows(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	resp := buildResponse(queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "time"}, resultRows, backend.DataResponse{})
+	resp := buildResponse(queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "time", Aggregation: "avg"}, resultRows)
 
 	if len(resp.Frames) != 0 {
 		t.Fatalf("expected 0 frames for empty result, got %d", len(resp.Frames))
@@ -389,7 +344,8 @@ func TestQueryEventsWithMock(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(eventRows)
 
-	qJSON, _ := json.Marshal(queryModel{QueryType: "events", Sources: []string{"src1"}, TimeField: "time"})
+	rawSql := "SELECT * FROM events"
+	qJSON, _ := json.Marshal(queryModel{QueryType: "events", Sources: []string{"src1"}, TimeField: "time", Aggregation: "avg", RawSql: &rawSql})
 	resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
 		Queries: []backend.DataQuery{
 			{RefID: "A", JSON: qJSON, TimeRange: backend.TimeRange{From: now.Add(-time.Hour), To: now.Add(time.Hour)}},
@@ -438,7 +394,8 @@ func TestQueryTelemetryWithMock(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(telemetryRows)
 
-	qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", Components: []string{"comp1"}, Channels: []string{"ch1"}, Sources: []string{"src1"}, TimeField: "time"})
+	rawSql := "SELECT * FROM telemetry"
+	qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", Channels: []channelRef{{"comp1", "ch1"}}, Sources: []string{"src1"}, TimeField: "time", Aggregation: "avg", RawSql: &rawSql})
 	resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
 		Queries: []backend.DataQuery{
 			{
@@ -464,8 +421,8 @@ func TestQueryTelemetryWithMock(t *testing.T) {
 		t.Fatalf("expected 1 frame, got %d", len(dr.Frames))
 	}
 	frame := dr.Frames[0]
-	if frame.Name != "comp1.ch1./time(src1)" {
-		t.Errorf("expected frame name 'comp1.ch1./time(src1)', got %q", frame.Name)
+	if frame.Name != "comp1.ch1" {
+		t.Errorf("expected frame name 'comp1.ch1', got %q", frame.Name)
 	}
 	if frame.Fields[1].Name != "value" {
 		t.Errorf("expected field name 'value', got %q", frame.Fields[1].Name)
@@ -549,8 +506,8 @@ func TestBuildResponseMultiComponentChannel(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	qm := queryModel{Components: []string{"CDH", "Sensors"}, Channels: []string{"Temperature", "Voltage"}, TimeField: "time"}
-	resp := buildResponse(qm, resultRows, backend.DataResponse{})
+	qm := queryModel{Channels: []channelRef{{"CDH", "Temperature"}, {"Sensors", "Voltage"}}, TimeField: "time", Aggregation: "avg"}
+	resp := buildResponse(qm, resultRows)
 
 	if len(resp.Frames) != 2 {
 		t.Fatalf("expected 2 frames for multi-component, got %d", len(resp.Frames))
@@ -560,11 +517,11 @@ func TestBuildResponseMultiComponentChannel(t *testing.T) {
 	for _, f := range resp.Frames {
 		frameNames[f.Name] = true
 	}
-	if !frameNames["CDH.Temperature./time(fsw-1)"] {
-		t.Error("missing frame CDH.Temperature./time(fsw-1)")
+	if !frameNames["CDH.Temperature"] {
+		t.Error("missing frame CDH.Temperature")
 	}
-	if !frameNames["Sensors.Voltage./time(fsw-1)"] {
-		t.Error("missing frame Sensors.Voltage./time(fsw-1)")
+	if !frameNames["Sensors.Voltage"] {
+		t.Error("missing frame Sensors.Voltage")
 	}
 }
 
@@ -582,8 +539,8 @@ func TestBuildResponseKeyFiltering(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	qm := queryModel{Components: []string{"CDH"}, Channels: []string{"Attitude"}, Keys: []string{"value.x", "value.y"}, TimeField: "time"}
-	resp := buildResponse(qm, resultRows, backend.DataResponse{})
+	qm := queryModel{Channels: []channelRef{{"CDH", "Attitude"}}, Keys: []keyRef{{"CDH", "Attitude", "value.x"}, {"CDH", "Attitude", "value.y"}}, TimeField: "time", Aggregation: "avg"}
+	resp := buildResponse(qm, resultRows)
 
 	if len(resp.Frames) != 2 {
 		t.Fatalf("expected 2 frames (one per key), got %d", len(resp.Frames))
@@ -593,10 +550,10 @@ func TestBuildResponseKeyFiltering(t *testing.T) {
 	for _, f := range resp.Frames {
 		frameNames[f.Name] = true
 	}
-	if !frameNames["CDH.Attitude.value.x/time(fsw-1)"] {
+	if !frameNames["CDH.Attitude.value.x"] {
 		t.Error("missing frame for key value.x")
 	}
-	if !frameNames["CDH.Attitude.value.y/time(fsw-1)"] {
+	if !frameNames["CDH.Attitude.value.y"] {
 		t.Error("missing frame for key value.y")
 	}
 }
@@ -614,15 +571,15 @@ func TestBuildResponseErtTimeField(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 	resultRows, _ := db.Query("SELECT")
-	qm := queryModel{Components: []string{"c"}, Channels: []string{"ch"}, TimeField: "ert"}
-	resp := buildResponse(qm, resultRows, backend.DataResponse{})
+	qm := queryModel{Channels: []channelRef{{"c", "ch"}}, TimeField: "ert", Aggregation: "avg"}
+	resp := buildResponse(qm, resultRows)
 
 	if len(resp.Frames) != 1 {
 		t.Fatalf("expected 1 frame, got %d", len(resp.Frames))
 	}
 	frame := resp.Frames[0]
-	if frame.Name != "c.ch./ert(src)" {
-		t.Errorf("expected frame name 'c.ch./ert(src)', got %q", frame.Name)
+	if frame.Name != "c.ch" {
+		t.Errorf("expected frame name 'c.ch', got %q", frame.Name)
 	}
 	if frame.Fields[0].Name != "ert" {
 		t.Errorf("expected time field 'ert', got %q", frame.Fields[0].Name)
@@ -630,9 +587,17 @@ func TestBuildResponseErtTimeField(t *testing.T) {
 }
 
 func TestQueryTelemetryErtTimeField(t *testing.T) {
-	ds := Datasource{}
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer func() { _ = db.Close() }()
 
-	qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", Components: []string{"comp"}, TimeField: "ert"})
+	ds := Datasource{db: db}
+	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{"time", "value"}))
+
+	rawSql := "SELECT * FROM telemetry"
+	qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", TimeField: "ert", Aggregation: "avg", RawSql: &rawSql})
 	resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
 		Queries: []backend.DataQuery{
 			{RefID: "A", JSON: qJSON},
@@ -649,7 +614,7 @@ func TestQueryTelemetryErtTimeField(t *testing.T) {
 func TestQueryTelemetryInvalidTimeField(t *testing.T) {
 	ds := Datasource{}
 
-	qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", Components: []string{"comp"}, Channels: []string{"ch"}, TimeField: "bogus"})
+	qJSON, _ := json.Marshal(queryModel{QueryType: "telemetry", Channels: []channelRef{{"comp", "ch"}}, TimeField: "bogus", Aggregation: "avg"})
 	resp, err := ds.QueryData(context.Background(), &backend.QueryDataRequest{
 		Queries: []backend.DataQuery{
 			{RefID: "A", JSON: qJSON},
@@ -737,23 +702,33 @@ func TestResourceHandlerChannels(t *testing.T) {
 	}
 }
 
-func TestResourceHandlerChannelsEmpty(t *testing.T) {
-	ds := &Datasource{}
+func TestResourceHandlerChannelsAll(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	ds := &Datasource{db: db}
+
+	mock.ExpectQuery("SELECT component").WillReturnRows(
+		sqlmock.NewRows([]string{"component", "name"}).AddRow("CDH", "Temperature").AddRow("Sensors", "Voltage"),
+	)
 
 	req, _ := http.NewRequest("GET", "/telemetry/channels", nil)
 	rr := &responseRecorder{header: http.Header{}}
 	ds.handleGetTelemetryChannels(rr, req)
 
 	if rr.code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rr.code)
+		t.Fatalf("expected 200, got %d; body: %s", rr.code, string(rr.body))
 	}
 
 	var result []channelEntry
 	if err := json.Unmarshal(rr.body, &result); err != nil {
 		t.Fatalf("json unmarshal: %v", err)
 	}
-	if len(result) != 0 {
-		t.Errorf("expected empty channels for no components, got %v", result)
+	if len(result) != 2 {
+		t.Errorf("expected 2 channels, got %v", result)
 	}
 }
 
@@ -797,7 +772,10 @@ func TestResourceHandlerKeys(t *testing.T) {
 	ds := &Datasource{db: db}
 
 	mock.ExpectQuery("SELECT DISTINCT").WillReturnRows(
-		sqlmock.NewRows([]string{"key"}).AddRow("value").AddRow("value.x").AddRow("value.y"),
+		sqlmock.NewRows([]string{"component", "name", "key"}).
+			AddRow("CDH", "Attitude", "value").
+			AddRow("CDH", "Attitude", "value.x").
+			AddRow("CDH", "Attitude", "value.y"),
 	)
 
 	req, _ := http.NewRequest("GET", "/telemetry/keys?components=CDH&channels=Attitude", nil)
@@ -808,12 +786,15 @@ func TestResourceHandlerKeys(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rr.code)
 	}
 
-	var result []string
+	var result []keyEntry
 	if err := json.Unmarshal(rr.body, &result); err != nil {
 		t.Fatalf("json unmarshal: %v", err)
 	}
 	if len(result) != 3 {
 		t.Errorf("expected 3 keys, got %v", result)
+	}
+	if result[0].Component != "CDH" || result[0].Channel != "Attitude" || result[0].Key != "value" {
+		t.Errorf("unexpected first key entry: %v", result[0])
 	}
 }
 
@@ -828,7 +809,7 @@ func TestResourceHandlerKeysEmpty(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rr.code)
 	}
 
-	var result []string
+	var result []keyEntry
 	if err := json.Unmarshal(rr.body, &result); err != nil {
 		t.Fatalf("json unmarshal: %v", err)
 	}

@@ -1,16 +1,19 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/lib/pq"
+	"github.com/grafana/grafana-plugin-sdk-go/data/sqlutil"
 )
 
 // QueryData handles multiple queries and returns multiple responses.
@@ -33,54 +36,63 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	return response, nil
 }
 
+type channelRef struct {
+	Component string `json:"component"`
+	Name      string `json:"name"`
+}
+
+type keyRef struct {
+	Component string `json:"component"`
+	Channel   string `json:"channel"`
+	Key       string `json:"key"`
+}
+
 type queryModel struct {
-	QueryType        string   `json:"queryType"`
-	Components       []string `json:"components"`
-	Channels         []string `json:"channels"`
-	Sources          []string `json:"sources"`
-	TimeOverrideFrom string   `json:"timeOverrideFrom,omitempty"`
-	TimeOverrideTo   string   `json:"timeOverrideTo,omitempty"`
-	Keys             []string `json:"keys,omitempty"`
-	TimeField        string   `json:"timeField"`
+	QueryType        string       `json:"queryType"`
+	Channels         []channelRef `json:"channels"`
+	Sources          []string     `json:"sources"`
+	Keys             []keyRef     `json:"keys,omitempty"`
+	TimeField        string       `json:"timeField"`
+	TimeOverrideFrom string       `json:"timeOverrideFrom,omitempty"`
+	TimeOverrideTo   string       `json:"timeOverrideTo,omitempty"`
+	Aggregation      string       `json:"aggregation"`
+	RawSql           *string      `json:"rawSql,omitempty"`
 }
 
 func (d *Datasource) query(ctx context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
 	// Unmarshal the JSON into our queryModel.
 	var qm queryModel
 
-	err := json.Unmarshal(query.JSON, &qm)
-	if err != nil {
+	if err := json.Unmarshal(query.JSON, &qm); err != nil {
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
 	}
 
-	queryFrom := query.TimeRange.From
-	queryTo := query.TimeRange.To
-	if qm.TimeOverrideFrom != "" {
-		if t, err := time.Parse(time.RFC3339Nano, qm.TimeOverrideFrom); err == nil {
-			queryFrom = t
-		}
-	}
-	if qm.TimeOverrideTo != "" {
-		if t, err := time.Parse(time.RFC3339Nano, qm.TimeOverrideTo); err == nil {
-			queryTo = t
-		}
-	}
-
-	var timeColumn string
 	switch qm.TimeField {
 	case "time":
-		timeColumn = "time"
 	case "ert":
-		timeColumn = "ert"
 	default:
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("invalid time type: %s", qm.TimeField))
 	}
 
+	var querySQL string
+	if qm.RawSql != nil {
+		querySQL = *qm.RawSql
+	} else {
+		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("rawSql is required for query type: %s", qm.QueryType))
+	}
+
+	if strings.Contains(querySQL, "$__interval") {
+		intervalStr := fmt.Sprintf("%d milliseconds", int(query.Interval.Milliseconds()))
+		querySQL = strings.ReplaceAll(querySQL, "$__interval", fmt.Sprintf("'%s'::interval", intervalStr))
+	}
+
 	switch qm.QueryType {
 	case "events":
-		return d.queryEvents(ctx, pCtx, qm, queryFrom, queryTo, timeColumn)
+		return d.queryEvents(ctx, pCtx, qm, querySQL)
 	case "telemetry":
-		return d.queryTelemetry(ctx, pCtx, qm, queryFrom, queryTo, timeColumn, query.Interval)
+		return d.queryTelemetry(ctx, pCtx, qm, querySQL)
+	case "raw":
+		return d.queryRaw(ctx, pCtx, querySQL)
 	}
 	return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("invalid query type: %s", qm.QueryType))
 }
@@ -102,32 +114,8 @@ func severityLabel(sev int64) string {
 	return fmt.Sprintf("UNKNOWN(%d)", sev)
 }
 
-func (d *Datasource) queryEvents(ctx context.Context, _ backend.PluginContext, qm queryModel, queryFrom time.Time, queryTo time.Time, timeColumn string) backend.DataResponse {
-	var response backend.DataResponse
-
-	queryArgs := []any{
-		pq.Array(qm.Sources),
-		queryFrom,
-		queryTo,
-	}
-
-	eventSQL := fmt.Sprintf(`
-		SELECT 
-			e.%s,
-			d.component,
-			d.name,
-			d.severity,
-			e.message,
-			e.source,
-			e.args::text AS arguments
-		FROM eventDefs d
-		JOIN events e ON e.eventDefId = d.id
-		WHERE ($1::text[] = '{}' OR e.source = ANY($1))
-		  AND e.%s >= $2
-		  AND e.%s <= $3
-		ORDER BY e.%s ASC;`, timeColumn, timeColumn, timeColumn, timeColumn)
-
-	rows, err := d.db.QueryContext(ctx, eventSQL, queryArgs...)
+func (d *Datasource) queryEvents(ctx context.Context, _ backend.PluginContext, qm queryModel, eventSQL string) backend.DataResponse {
+	rows, err := d.db.QueryContext(ctx, eventSQL)
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("events query execution failed: %v", err.Error()))
 	}
@@ -135,7 +123,7 @@ func (d *Datasource) queryEvents(ctx context.Context, _ backend.PluginContext, q
 
 	frame := data.NewFrame("Events")
 	frame.Fields = append(frame.Fields,
-		data.NewField(timeColumn, nil, []time.Time{}),
+		data.NewField(qm.TimeField, nil, []time.Time{}),
 		data.NewField("component", nil, []string{}),
 		data.NewField("name", nil, []string{}),
 		data.NewField("severity", nil, []string{}),
@@ -160,89 +148,23 @@ func (d *Datasource) queryEvents(ctx context.Context, _ backend.PluginContext, q
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("events row iteration error: %v", err.Error()))
 	}
 
+	var response backend.DataResponse
 	response.Frames = append(response.Frames, frame)
 	return response
 }
 
-// channelNames extracts the plain channel name from composite "component:name"
-// values. Plain names (without ":") are returned as-is.
-func channelNames(channels []string) []string {
-	names := make([]string, len(channels))
-	for i, ch := range channels {
-		if idx := strings.Index(ch, ":"); idx >= 0 {
-			names[i] = ch[idx+1:]
-		} else {
-			names[i] = ch
-		}
-	}
-	return names
-}
-
-func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext, qm queryModel, queryFrom time.Time, queryTo time.Time, timeColumn string, queryInterval time.Duration) backend.DataResponse {
-	var response backend.DataResponse
-	if len(qm.Components) == 0 || len(qm.Channels) == 0 {
-		return response
-	}
-
-	sqlKeyParam := pq.Array(qm.Keys)
-	if len(qm.Keys) > 0 {
-		keyPatterns := make([]string, len(qm.Keys))
-		for i, key := range qm.Keys {
-			keyPatterns[i] = key + "%"
-		}
-		sqlKeyParam = pq.Array(keyPatterns)
-	}
-
-	// Set time grouping interval
-	intervalStr := fmt.Sprintf("%d seconds", int(queryInterval.Seconds()))
-	if queryInterval.Seconds() < 1 {
-		intervalStr = "1 second"
-	}
-
-	queryArgs := []any{
-		pq.Array(qm.Components),
-		pq.Array(channelNames(qm.Channels)),
-		pq.Array(qm.Sources),
-		queryFrom,
-		queryTo,
-		sqlKeyParam,
-		intervalStr,
-	}
-
-	// TODO: also consider having valueType in telemetryDefs instead of telemetry
-	rawSQL := fmt.Sprintf(`
-		SELECT
-			time_bucket($7::interval, t.%s) AS time_bucket,
-			d.component,
-			d.name,
-			t.source,
-			t.valueType,
-			t.key,
-			AVG(t.integral::double precision) AS val_int,
-			AVG(t.floating::double precision) AS val_float,
-			AVG(t.boolval::int::double precision) AS val_bool,
-			MAX(t.string) AS val_str 
-		FROM telemetryDefs d
-		JOIN telemetry t ON t.telemetryDefId = d.id
-		WHERE d.component = ANY($1)
-		  AND d.name = ANY($2)
-		  AND ($3::text[] = '{}' OR t.source = ANY($3))
-		  AND t.%s >= $4 AND t.%s <= $5
-		  AND ($6::text[] = '{}' OR t.key LIKE ANY($6))
-		GROUP BY time_bucket, d.component, d.name, t.source, t.valueType, t.key
-		ORDER BY time_bucket ASC;`, timeColumn, timeColumn, timeColumn)
-
+func (d *Datasource) queryTelemetry(ctx context.Context, _ backend.PluginContext, qm queryModel, telemetrySQL string) backend.DataResponse {
 	// Execute the query
-	rows, err := d.db.QueryContext(ctx, rawSQL, queryArgs...)
+	rows, err := d.db.QueryContext(ctx, telemetrySQL)
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("telemetry query execution failed: %v", err.Error()))
 	}
 	defer func() { _ = rows.Close() }()
 
-	return buildResponse(qm, rows, response)
+	return buildResponse(qm, rows)
 }
 
-func buildResponse(qm queryModel, rows *sql.Rows, response backend.DataResponse) backend.DataResponse {
+func buildResponse(qm queryModel, rows *sql.Rows) backend.DataResponse {
 	frames := make(map[string]*data.Frame)
 
 	for rows.Next() {
@@ -317,9 +239,138 @@ func buildResponse(qm queryModel, rows *sql.Rows, response backend.DataResponse)
 		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("telemetry row iteration error: %v", err.Error()))
 	}
 
-	// Return all data frames
+	if qm.Aggregation == "deriv" {
+		computeDerivatives(&frames)
+	}
+
+	// Compute minimal display names across all frames
+	keySet := make(map[string]struct{})
+	sourceSet := make(map[string]struct{})
 	for _, frame := range frames {
+		for _, field := range frame.Fields {
+			if field.Labels == nil {
+				continue
+			}
+			if field.Labels["key"] != "value" {
+				keySet[field.Labels["key"]] = struct{}{}
+			}
+			sourceSet[field.Labels["source"]] = struct{}{}
+		}
+	}
+	multiKey := len(keySet) > 1
+	multiSource := len(sourceSet) > 1
+
+	// Return all data frames with display names
+	var response backend.DataResponse
+	for _, frame := range frames {
+		var frameName string
+		for _, field := range frame.Fields {
+			if field.Labels == nil {
+				continue
+			}
+			parts := []string{field.Labels["component"], field.Labels["channel"]}
+			if multiKey && field.Labels["key"] != "value" {
+				parts = append(parts, field.Labels["key"])
+			}
+			displayName := strings.Join(parts, ".")
+			if multiSource {
+				displayName += " (" + field.Labels["source"] + ")"
+			}
+			field.SetConfig(&data.FieldConfig{
+				DisplayNameFromDS: displayName,
+			})
+			frameName = displayName
+		}
+		frame.Name = frameName
 		response.Frames = append(response.Frames, frame)
 	}
+	slices.SortFunc(response.Frames, func(a, b *data.Frame) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return response
+}
+
+func computeDerivatives(frames *map[string]*data.Frame) {
+	for _, frame := range *frames {
+		if len(frame.Fields) < 2 {
+			continue
+		}
+
+		timeField := frame.Fields[0]
+		valueField := frame.Fields[1]
+		size := valueField.Len()
+		if size < 2 {
+			continue
+		}
+		if _, ok := valueField.At(0).(*float64); !ok {
+			continue
+		}
+
+		valuesCopy := make([]*float64, size)
+		for i := range size {
+			if val := valueField.At(i); val != nil {
+				valuesCopy[i] = val.(*float64)
+			}
+		}
+
+		deriv := make([]*float64, size)
+		deriv[0] = nil
+
+		for i := range size {
+			// Skip the first one
+			if i == 0 {
+				continue
+			}
+
+			prevTime := timeField.At(i - 1).(time.Time)
+			currTime := timeField.At(i).(time.Time)
+
+			prevVal := valuesCopy[i-1]
+			currVal := valuesCopy[i]
+			if prevVal == nil || currVal == nil {
+				continue
+			}
+
+			timeDelta := currTime.Sub(prevTime).Seconds()
+			if timeDelta == 0 {
+				var zero float64
+				deriv[i] = &zero
+				continue
+			}
+
+			deri := (*currVal - *prevVal) / timeDelta
+			deriv[i] = &deri
+		}
+
+		frame.Fields[1] = data.NewField(valueField.Name, valueField.Labels, deriv)
+	}
+}
+
+// nullFloat32Converter handles nullable REAL/FLOAT4 (float32) columns from
+// PostgreSQL. The SDK's built-in converters only register float64 for nullable
+// floats, so a NULL in a REAL column would otherwise fail to scan. Scanning into
+// sql.NullFloat64 (which lib/pq widens float4 into) handles NULL cleanly.
+var nullFloat32Converter = sqlutil.Converter{
+	Name:           "nullable float32 converter",
+	InputScanType:  reflect.TypeFor[sql.NullFloat64](),
+	InputTypeName:  "FLOAT4",
+	FrameConverter: sqlutil.NullDecimalConverter.FrameConverter,
+}
+
+func (d *Datasource) queryRaw(ctx context.Context, _ backend.PluginContext, eventSQL string) backend.DataResponse {
+	rows, err := d.db.QueryContext(ctx, eventSQL)
+	if err != nil {
+		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("events query execution failed: %v", err.Error()))
+	}
+	defer func() { _ = rows.Close() }()
+
+	frame, err := sqlutil.FrameFromRows(rows, -1, nullFloat32Converter)
+	if err != nil {
+		return backend.ErrDataResponse(backend.StatusInternal, fmt.Sprintf("failed to parse rows to frame: %v", err.Error()))
+	}
+	frame.Name = "Raw Data"
+
+	var response backend.DataResponse
+	response.Frames = append(response.Frames, frame)
 	return response
 }

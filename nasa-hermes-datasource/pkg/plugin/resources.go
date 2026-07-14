@@ -47,13 +47,7 @@ type channelEntry struct {
 }
 
 func (d *Datasource) handleGetTelemetryChannels(w http.ResponseWriter, r *http.Request) {
-	components := r.URL.Query()["components"]
-	if len(components) == 0 {
-		writeJSONResponse(w, []channelEntry{})
-		return
-	}
-
-	rows, err := d.db.QueryContext(r.Context(), "SELECT component, name FROM telemetryDefs WHERE component = ANY($1) ORDER BY component, name;", pq.Array(components))
+	rows, err := d.db.QueryContext(r.Context(), "SELECT component, name FROM telemetryDefs ORDER BY component, name;")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -90,19 +84,26 @@ func (d *Datasource) handleGetTelemetrySources(w http.ResponseWriter, r *http.Re
 	writeJSONResponse(w, items)
 }
 
+type keyEntry struct {
+	Component string `json:"component"`
+	Channel   string `json:"channel"`
+	Key       string `json:"key"`
+}
+
 func (d *Datasource) handleGetTelemetryKeys(w http.ResponseWriter, r *http.Request) {
 	components := r.URL.Query()["components"]
 	channels := r.URL.Query()["channels"]
 	if len(components) == 0 || len(channels) == 0 {
-		writeJSONResponse(w, []string{})
+		writeJSONResponse(w, []keyEntry{})
 		return
 	}
 
 	query := `
-		SELECT DISTINCT t.key 
+		SELECT DISTINCT d.component, d.name, t.key 
 		FROM telemetry t
 		JOIN telemetryDefs d ON t.telemetryDefId = d.id
 		WHERE d.component = ANY($1) AND d.name = ANY($2) AND t.key IS NOT NULL
+		ORDER BY d.component, d.name, t.key
 		LIMIT 200;`
 
 	rows, err := d.db.QueryContext(r.Context(), query, pq.Array(components), pq.Array(channels))
@@ -110,8 +111,18 @@ func (d *Datasource) handleGetTelemetryKeys(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	items, err := scanStrings(rows)
-	if err != nil {
+	defer func() { _ = rows.Close() }()
+
+	items := []keyEntry{}
+	for rows.Next() {
+		var entry keyEntry
+		if err := rows.Scan(&entry.Component, &entry.Channel, &entry.Key); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		items = append(items, entry)
+	}
+	if err := rows.Err(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
