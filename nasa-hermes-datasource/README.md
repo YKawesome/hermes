@@ -6,12 +6,12 @@ For end-user documentation (configuration, query editor usage, etc.), see the [p
 
 ## Prerequisites
 
-| Tool | Version |
-|------|---------|
-| Node.js | >= 22 (see `.nvmrc`) |
-| Go | >= 1.26 |
-| Mage | latest |
-| Docker & Docker Compose | latest |
+| Tool                    | Version              |
+| ----------------------- | -------------------- |
+| Node.js                 | >= 22 (see `.nvmrc`) |
+| Go                      | >= 1.26              |
+| Mage                    | latest               |
+| Docker & Docker Compose | latest               |
 
 ## Local Development
 
@@ -61,6 +61,10 @@ npm run lint
 npm run lint:fix
 ```
 
+## Release
+
+Pushing a tag with the prefix `grafana-v` will trigger a release build and draft release.
+
 ## Project Structure
 
 ```
@@ -71,17 +75,18 @@ pkg/
     datasource.go          # Instance lifecycle, health check
     query.go               # Telemetry & event query execution
     resources.go           # REST resource handlers (components, channels, etc.)
+provisioning/
+  datasources/
+    datasources.yml        # Auto-provisioned datasource for local dev
 src/
   components/
     ConfigEditor.tsx       # Datasource configuration form
     QueryEditor.tsx        # Query editor UI
   datasource.ts            # Frontend datasource class
+  query.ts                 # SQL query builder (frontend)
   types.ts                 # Shared TypeScript types
   plugin.json              # Plugin metadata
   README.md                # Plugin catalog README (user-facing)
-provisioning/
-  datasources/
-    datasources.yml        # Auto-provisioned datasource for local dev
 ```
 
 ## License
