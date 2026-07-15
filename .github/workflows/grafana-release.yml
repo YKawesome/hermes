@@ -1,3 +1,5 @@
+# Thie workflow follows https://github.com/grafana/plugin-actions/tree/main/build-plugin, but is modifed to work with this monorepo.
+
 name: Grafana Release
 
 on:
