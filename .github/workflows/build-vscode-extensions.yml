@@ -1,4 +1,4 @@
-name: Build VSCode Extensions and Grafana Plugin
+name: Build VSCode Extensions
 
 on:
   release:
