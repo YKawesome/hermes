@@ -12,7 +12,7 @@ Check out [using Grafana with TimescaleDB](db/timescaledb#using-grafana-with-tim
 
 ## Installing the Hermes data source plugin
 
-The Hermes data source plugin is distributed as a release asset on GitHub. If you are using the default [docker compose](../../timescale-stack/docker-compose.yml), the plugin is pre-installed, and no action is needed. Otherwise, you need to install the plugin following the steps below. Because it is **unsigned**, Grafana must be configured to allow it in addition to installing the files.
+The Hermes data source plugin is distributed as a release asset on GitHub. If you are using the default [docker compose](https://github.com/nasa/hermes/blob/main/docker-compose.yml), the plugin is pre-installed, and no action is needed. Otherwise, you need to install the plugin following the steps below. Because it is **unsigned**, Grafana must be configured to allow it in addition to installing the files.
 
 After [allowing the unsigned plugin](#allowing-the-unsigned-plugin), pick the method that matches your setup:
 
@@ -44,7 +44,7 @@ Restart Grafana after changing `grafana.ini`.
 
 Add a short-lived installer service that runs the install script into a shared
 volume before Grafana starts. This always installs the latest published release,
-with no manual step. This is included in the default [`docker-compose.yml`](../../timescale-stack/docker-compose.yml), so no modifications are needed, and the plugin is automatically installed if you are using that docker compose.
+with no manual step. This is included in the default [`docker-compose.yml`](https://github.com/nasa/hermes/blob/main/docker-compose.yml), so no modifications are needed, and the plugin is automatically installed if you are using that docker compose.
 
 ```yaml
 services:
