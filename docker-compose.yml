@@ -7,9 +7,10 @@ services:
       - sh
       - -c
       - |
-        apk add --no-cache curl jq bash unzip &&
-        curl -fsSL https://raw.githubusercontent.com/nasa/hermes/81-deploy-plugin-figure-out-communityprivate-signing/nasa-hermes-datasource/install.sh \
-          | bash -s -- /plugins
+        set -eo pipefail
+        apk add --no-cache curl jq bash unzip
+        INSTALL_SCRIPT=$(curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/nasa-hermes-datasource/install.sh)
+        echo "$INSTALL_SCRIPT" | bash -s -- /plugins
 
   timescaledb:
     image: timescale/timescaledb:latest-pg16
