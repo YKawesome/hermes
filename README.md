@@ -37,4 +37,4 @@ zensical serve
 ```
 
 ### Grafana Plugin
-See [nasa-hermes-datasource/README.md](nasa-hermes-datasource/README.md)
+See [grafana-datasource-plugin/README.md](grafana-datasource-plugin/README.md)

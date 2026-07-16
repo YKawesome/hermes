@@ -9,7 +9,7 @@ on:
       - 'docs/**'
       - 'README.md'
       - 'zensical.toml'
-      - 'nasa-hermes-datasource/**'
+      - 'grafana-datasource-plugin/**'
       - '.github/workflows/grafana-*.yml'
 
 jobs:

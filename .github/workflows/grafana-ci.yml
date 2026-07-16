@@ -6,13 +6,13 @@ on:
       - master
       - main
     paths:
-      - 'nasa-hermes-datasource/**'
+      - 'grafana-datasource-plugin/**'
   pull_request:
     branches:
       - master
       - main
     paths:
-      - 'nasa-hermes-datasource/**'
+      - 'grafana-datasource-plugin/**'
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./nasa-hermes-datasource
+        working-directory: ./grafana-datasource-plugin
     outputs:
       plugin-id: ${{ steps.metadata.outputs.plugin-id }}
       plugin-version: ${{ steps.metadata.outputs.plugin-version }}
@@ -40,7 +40,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: ./nasa-hermes-datasource/package-lock.json
+          cache-dependency-path: ./grafana-datasource-plugin/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -66,14 +66,14 @@ jobs:
         if: steps.check-for-backend.outputs.has-backend == 'true'
         uses: actions/setup-go@v6
         with:
-          go-version-file: ./nasa-hermes-datasource/go.mod
+          go-version-file: ./grafana-datasource-plugin/go.mod
 
       - name: Lint backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: latest
-          working-directory: ./nasa-hermes-datasource
+          working-directory: ./grafana-datasource-plugin
 
       - name: Build backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
@@ -81,7 +81,7 @@ jobs:
         with:
           version: latest
           args: buildAll
-          workdir: ./nasa-hermes-datasource
+          workdir: ./grafana-datasource-plugin
 
       - name: Test backend
         if: steps.check-for-backend.outputs.has-backend == 'true'
@@ -89,7 +89,7 @@ jobs:
         with:
           version: latest
           args: test
-          workdir: ./nasa-hermes-datasource
+          workdir: ./grafana-datasource-plugin
 
       - name: Check for E2E
         id: check-for-e2e
@@ -137,7 +137,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.metadata.outputs.plugin-id }}-${{ steps.metadata.outputs.plugin-version }}
-          path: nasa-hermes-datasource/${{ steps.metadata.outputs.plugin-id }}
+          path: grafana-datasource-plugin/${{ steps.metadata.outputs.plugin-id }}
           retention-days: 5
 
   resolve-versions:
@@ -157,7 +157,7 @@ jobs:
       - name: Read grafanaDependency from plugin.json
         id: plugin-dep
         run: |
-          DEP=$(jq -r '.dependencies.grafanaDependency' nasa-hermes-datasource/src/plugin.json)
+          DEP=$(jq -r '.dependencies.grafanaDependency' grafana-datasource-plugin/src/plugin.json)
           echo "grafana-dependency=${DEP}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve Grafana E2E versions
@@ -177,7 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./nasa-hermes-datasource
+        working-directory: ./grafana-datasource-plugin
     steps:
       - uses: actions/checkout@v6
         with:
@@ -186,7 +186,7 @@ jobs:
       - name: Download plugin
         uses: actions/download-artifact@v8
         with:
-          path: nasa-hermes-datasource/dist
+          path: grafana-datasource-plugin/dist
           name: ${{ needs.build.outputs.plugin-id }}-${{ needs.build.outputs.plugin-version }}
 
       - name: Execute permissions on binary
@@ -199,7 +199,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: ./nasa-hermes-datasource/package-lock.json
+          cache-dependency-path: ./grafana-datasource-plugin/package-lock.json
 
       - name: Install dev dependencies
         run: npm ci
@@ -224,7 +224,7 @@ jobs:
       - name: Docker logs
         if: ${{ always() && steps.run-tests.outcome == 'failure' }}
         run: |
-          docker logs nasa-hermes-datasource >& grafana-server.log
+          docker logs grafana-datasource-plugin >& grafana-server.log
 
       - name: Stop grafana docker
         run: docker compose down

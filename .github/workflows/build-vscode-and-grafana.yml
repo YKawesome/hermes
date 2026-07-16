@@ -372,7 +372,7 @@ jobs:
       contents: write
     defaults:
       run:
-        working-directory: nasa-hermes-datasource
+        working-directory: grafana-datasource-plugin
     steps:
       - uses: actions/checkout@v6
 
@@ -381,7 +381,7 @@ jobs:
           node-version: '22'
       - uses: actions/setup-go@v5
         with:
-          go-version-file: ./nasa-hermes-datasource/go.mod
+          go-version-file: ./grafana-datasource-plugin/go.mod
 
       - name: Install frontend dependencies
         run: npm ci
@@ -393,13 +393,13 @@ jobs:
         with:
           version: latest
           args: coverage
-          workdir: ./nasa-hermes-datasource
+          workdir: ./grafana-datasource-plugin
       - name: Build backend
         uses: magefile/mage-action@v4
         with:
           version: latest
           args: buildAll
-          workdir: ./nasa-hermes-datasource
+          workdir: ./grafana-datasource-plugin
 
       - name: Get plugin metadata
         id: metadata
@@ -420,7 +420,7 @@ jobs:
 
           echo "github-tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
         shell: bash
-        working-directory: ./nasa-hermes-datasource
+        working-directory: ./grafana-datasource-plugin
       - name: Package plugin
         id: package-plugin
         run: |
@@ -432,7 +432,7 @@ jobs:
           PLUGIN_ID: ${{ steps.metadata.outputs.plugin-id }}
           PLUGIN_ARCHIVE: ${{ steps.metadata.outputs.archive }}
           PLUGIN_ARCHIVE_SHA1SUM: ${{ steps.metadata.outputs.archive-sha1sum }}
-        working-directory: ./nasa-hermes-datasource
+        working-directory: ./grafana-datasource-plugin
 
       - name: Validate plugin
         run: |
@@ -440,15 +440,15 @@ jobs:
         shell: bash
         env:
           PLUGIN_ARCHIVE: ${{ steps.metadata.outputs.archive }}
-        working-directory: ./nasa-hermes-datasource
+        working-directory: ./grafana-datasource-plugin
 
       - name: Upload grafana plugin artifact
         uses: actions/upload-artifact@v4
         with:
           name: grafana-plugin-${{ needs.prepare.outputs.version }}
           path: |
-            ./nasa-hermes-datasource/${{ steps.metadata.outputs.archive }}
-            ./nasa-hermes-datasource/${{ steps.metadata.outputs.archive-sha1sum }}
+            ./grafana-datasource-plugin/${{ steps.metadata.outputs.archive }}
+            ./grafana-datasource-plugin/${{ steps.metadata.outputs.archive-sha1sum }}
           retention-days: 30
 
       - name: Upload grafana plugin to release
@@ -456,5 +456,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ./nasa-hermes-datasource/${{ steps.metadata.outputs.archive }}
-            ./nasa-hermes-datasource/${{ steps.metadata.outputs.archive-sha1sum }}
+            ./grafana-datasource-plugin/${{ steps.metadata.outputs.archive }}
+            ./grafana-datasource-plugin/${{ steps.metadata.outputs.archive-sha1sum }}

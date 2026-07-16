@@ -64,7 +64,7 @@ updates:
       include: 'scope'
 
   - package-ecosystem: 'gomod'
-    directory: '/nasa-hermes-datasource'
+    directory: '/grafana-datasource-plugin'
     schedule:
       interval: 'weekly'
     open-pull-requests-limit: 5

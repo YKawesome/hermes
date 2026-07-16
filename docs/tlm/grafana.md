@@ -58,7 +58,7 @@ services:
       - -c
       - |
         apk add --no-cache curl jq bash unzip &&
-        curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/nasa-hermes-datasource/install.sh \
+        curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/grafana-datasource-plugin/install.sh \
           | bash -s -- /plugins
 
   grafana:
@@ -102,14 +102,14 @@ The install script downloads the latest published release and extracts it into
 your Grafana plugins directory. It requires [`jq`](https://jqlang.github.io/jq/).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/nasa-hermes-datasource/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/grafana-datasource-plugin/install.sh | bash
 ```
 
 The script auto-detects a plugins directory. To install into a specific directory,
 pass it as an argument (everything after `bash -s --` is passed to the script):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/nasa-hermes-datasource/install.sh \
+curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/grafana-datasource-plugin/install.sh \
   | bash -s -- /var/lib/grafana/plugins
 ```
 
@@ -123,7 +123,7 @@ Install the plugin into a host folder, then mount it into the container:
 ```bash
 # Install the plugin into a host folder
 mkdir -p ~/grafana-plugins
-curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/nasa-hermes-datasource/install.sh \
+curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/grafana-datasource-plugin/install.sh \
   | bash -s -- ~/grafana-plugins
 
 # Start Grafana with the plugin mounted and allowed

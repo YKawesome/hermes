@@ -9,7 +9,7 @@ services:
       - |
         set -eo pipefail
         apk add --no-cache curl jq bash unzip
-        INSTALL_SCRIPT=$(curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/nasa-hermes-datasource/install.sh)
+        INSTALL_SCRIPT=$(curl -fsSL https://raw.githubusercontent.com/nasa/hermes/main/grafana-datasource-plugin/install.sh)
         echo "$INSTALL_SCRIPT" | bash -s -- /plugins
 
   timescaledb:
