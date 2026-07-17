@@ -13,8 +13,13 @@ function runCommand(dir: string, name: string, ...args: string[]) {
   }));
 }
 
-function startCommand(dir: string, name: string, ...args: string[]) {
-  return spawn(name, args, { cwd: dir, stdio: 'inherit' });
+function startCommand(dir: string, name: string, ...args: string[]): () => Promise<void> {
+  const backend = spawn(name, args, { cwd: dir, stdio: 'inherit' })
+    .on('error', (err) => console.error(err));
+  return () => new Promise<void>(resolve => {
+    backend.kill();
+    backend.once('exit', resolve);
+  });
 }
 
 function waitPort(target: string, retries = 10, timeout = 500) {
@@ -63,7 +68,7 @@ test('"Save & test" should be successful when configuration is valid', async ({
   const ds = await readProvisionedDataSource<MyDataSourceOptions, MySecureJsonData>({ fileName: 'datasources.yml' });
 
   await runCommand('..', 'make', 'out/backend').catch((err) => console.error(err));
-  const backend = startCommand('..', './out/backend', '--bind-type', 'tcp', '--bind', 'localhost:6880').on('error', (err) => console.error(err));
+  const backendKill = startCommand('..', './out/backend', '--bind-type', 'tcp', '--bind', 'localhost:6880');
   await waitPort('localhost:6880').catch((err) => console.error(err));
 
   try {
@@ -76,7 +81,7 @@ test('"Save & test" should be successful when configuration is valid', async ({
     await expect(configPage.saveAndTest()).not.toBeOK();
     await expect(configPage).toHaveAlert('error', { hasText: 'Status of connection to Hermes is unknown, no dictionaries are loaded or registered yet.' });
   } finally {
-    backend.kill();
+    await backendKill();
   }
 });
 
