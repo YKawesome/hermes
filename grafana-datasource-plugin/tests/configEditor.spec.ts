@@ -67,8 +67,10 @@ test('"Save & test" should be successful when configuration is valid', async ({
 }) => {
   const ds = await readProvisionedDataSource<MyDataSourceOptions, MySecureJsonData>({ fileName: 'datasources.yml' });
 
+  // Bind to 0.0.0.0 in CI so docker can connect to it
+  const bindHost = process.env.CI ? '0.0.0.0' : 'localhost';
   await runCommand('..', 'make', 'out/backend').catch((err) => console.error(err));
-  const backendKill = startCommand('..', './out/backend', '--bind-type', 'tcp', '--bind', 'localhost:6880');
+  const backendKill = startCommand('..', './out/backend', '--bind-type', 'tcp', '--bind', `${bindHost}:6880`);
   await waitPort('localhost:6880').catch((err) => console.error(err));
 
   try {
