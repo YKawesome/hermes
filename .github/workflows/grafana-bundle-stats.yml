@@ -6,12 +6,12 @@ on:
     branches:
       - main
     paths:
-      - 'nasa-hermes-datasource/**'
+      - 'grafana-datasource-plugin/**'
   push:
     branches:
       - main
     paths:
-      - 'nasa-hermes-datasource/**'
+      - 'grafana-datasource-plugin/**'
 
 permissions:
   contents: read
@@ -30,4 +30,4 @@ jobs:
 
       - uses: grafana/plugin-actions/bundle-size@bundle-size/v1.0.2
         with:
-          path: ./nasa-hermes-datasource
+          path: ./grafana-datasource-plugin
