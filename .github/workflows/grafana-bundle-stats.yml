@@ -28,6 +28,17 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./grafana-datasource-plugin/package-lock.json
+
+      - name: Install plugin dependencies
+        working-directory: ./grafana-datasource-plugin
+        run: npm ci
+
       - uses: grafana/plugin-actions/bundle-size@bundle-size/v1.0.2
         with:
-          path: ./grafana-datasource-plugin
+          working-directory: ./grafana-datasource-plugin

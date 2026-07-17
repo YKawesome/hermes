@@ -1,70 +1,21 @@
-<!-- This README file is going to be the one displayed on the Grafana.com website for your plugin. Uncomment and replace the content here before publishing.
-
-Remove any remaining comments before publishing as these may be displayed on Grafana.com -->
-
-# Hermes-Datasource
-
-<!-- To help maximize the impact of your README and improve usability for users, we propose the following loose structure:
-
-**BEFORE YOU BEGIN**
-- Ensure all links are absolute URLs so that they will work when the README is displayed within Grafana and Grafana.com
-- Be inspired ✨
-  - [grafana-polystat-panel](https://github.com/grafana/grafana-polystat-panel)
-  - [volkovlabs-variable-panel](https://github.com/volkovlabs/volkovlabs-variable-panel)
-
-**ADD SOME BADGES**
-
-Badges convey useful information at a glance for users whether in the Catalog or viewing the source code. You can use the generator on [Shields.io](https://shields.io/badges/dynamic-json-badge) together with the Grafana.com API
-to create dynamic badges that update automatically when you publish a new version to the marketplace.
-
-- For the URL parameter use `https://grafana.com/api/plugins/your-plugin-id`.
-- Example queries:
-  - Downloads: `$.downloads`
-  - Catalog Version: `$.version`
-  - Grafana Dependency: `$.grafanaDependency`
-  - Signature Type: `$.versionSignatureType`
-- Optionally, for the logo parameter use `grafana`.
-
-Full example: ![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.version&url=https://grafana.com/api/plugins/grafana-polystat-panel&label=Marketplace&prefix=v&color=F47A20)
-
-Consider other [badges](https://shields.io/badges) as you feel appropriate for your project.
-
-## Overview / Introduction
-Provide one or more paragraphs as an introduction to your plugin to help users understand why they should use it.
-
-Consider including screenshots:
-- in [plugin.json](https://grafana.com/developers/plugin-tools/reference/plugin-json#info) include them as relative links.
-- in the README ensure they are absolute URLs.
-
-## Requirements
-List any requirements or dependencies they may need to run the plugin.
-
-## Getting Started
-Provide a quick start on how to configure and use the plugin.
-
-## Documentation
-If your project has dedicated documentation available for users, provide links here. For help in following Grafana's style recommendations for technical documentation, refer to our [Writer's Toolkit](https://grafana.com/docs/writers-toolkit/).
-
-## Contributing
-Do you want folks to contribute to the plugin or provide feedback through specific means? If so, tell them how!
--->
-
-![Grafana](https://img.shields.io/badge/Grafana-%3E%3D12.3.0-F47A20?logo=grafana)
+<!-- [![Downloads](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.downloads&url=https://grafana.com/api/plugins/nasa-hermes-datasource&label=Downloads&color=F47A20)](https://grafana.com/grafana/plugins/nasa-hermes-datasource)
+[![Marketplace Version](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.version&url=https://grafana.com/api/plugins/nasa-hermes-datasource&label=Marketplace&prefix=v&color=F47A20)](https://grafana.com/grafana/plugins/nasa-hermes-datasource)
+[![Grafana Dependency](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.grafanaDependency&url=https://grafana.com/api/plugins/nasa-hermes-datasource&label=Grafana&color=F47A20)](https://grafana.com/grafana/plugins/nasa-hermes-datasource)
+[![Signature](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.versionSignatureType&url=https://grafana.com/api/plugins/nasa-hermes-datasource&label=Signature&color=brightgreen)](https://grafana.com/grafana/plugins/nasa-hermes-datasource) -->
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue)
+
+# Hermes Datasource
 
 ## Overview
 
-**Hermes-Datasource** is a Grafana backend datasource plugin that connects to a [TimescaleDB](https://www.timescale.com/) database to query and visualize **telemetry** and **event** data from NASA's Hermes flight software (FSW) system.
+**Hermes** is a Grafana backend datasource plugin that connects to a [TimescaleDB](https://www.timescale.com/) database to query and visualize **telemetry** and **events** data from NASA's [Hermes ground data system (GDS)](https://github.com/nasa/hermes).
 
-The plugin provides a multi-select query editor for browsing FSW components, channels, and keys, making it easy to build dashboards over spacecraft telemetry and event streams without writing raw SQL. Multiple components, channels, sources, and keys can be selected in a single query to overlay or compare data series.
+The plugin provides a multi-select query editor for querying events and telemetry, making it easy to build dashboards over spacecraft telemetry and event streams without writing raw SQL. Multiple telemetry channels, sources, and keys can be selected in a single query to overlay or compare data series. Additionally you can write custom SQL queries.
 
 ## Requirements
 
 - **Grafana** >= 12.3.0
-- **TimescaleDB** (PostgreSQL with the TimescaleDB extension) — the plugin expects the Hermes schema (`telemetryDefs`, `telemetry`, `eventDefs`, `events` tables/hypertables) to already exist in the target database.
-- **Node.js** >= 22 (for frontend development)
-- **Go** >= 1.26 (for backend development)
-- **Mage** — Go build tool used for compiling the backend plugin binaries
+- **TimescaleDB** (PostgreSQL with the TimescaleDB extension); the plugin expects the Hermes schema (`telemetryDefs`, `telemetry`, `eventDefs`, `events` tables/hypertables) to already exist in the target database. See [Hermes](https://github.com/nasa/hermes) for help.
 
 ## Getting Started
 
@@ -74,47 +25,52 @@ Install the plugin into your Grafana instance. Once installed, restart Grafana i
 
 ### 2. Configure the datasource
 
-Navigate to **Connections > Data sources > Add data source** and search for **Hermes-Datasource**. Fill in the connection details:
-
-| Field        | Description                                           | Example              |
-|------------- |------------------------------------------------------ |--------------------- |
-| **Host**     | TimescaleDB host and port                             | `localhost:5432`     |
-| **User**     | Database user (leave blank for OS user)               | `postgres`           |
-| **Password** | Database password (stored securely via `secureJsonData`) | `password`        |
-| **Database** | Database name                                         | `hermes`             |
+Navigate to **Connections > Data sources > Add new data source** and search for **Hermes**, then fill in the connection details.
 
 Click **Save & Test** to verify connectivity.
 
 ### 3. Query data
 
-Create a new panel and select the **Hermes-Datasource**. The query editor supports two query types:
+Create a new panel and select **Hermes**. Use the **Builder / Code** toggle at the top of the query editor to switch modes.
 
-#### Telemetry
+#### Builder: Telemetry
 
-Query time-series telemetry values by selecting:
+Select **Telemetry** in the bottom-right toggle. Queries time-series values from the `telemetry` hypertable.
 
-- **Component** *(multi-select)* — One or more FSW components or modules (e.g. `cmdDisp`, `health`). Selecting multiple components queries telemetry across all of them.
-- **Channel** *(multi-select)* — One or more telemetry channel names within the selected components. Channels with duplicate names across components are disambiguated with a `(component)` suffix. Each unique combination of component, channel, source, and key produces its own data frame, so selecting multiple channels overlays them on the same panel.
-- **Source** *(optional, multi-select)* — One or more FSW source identifiers to filter by. Leave empty to include all sources.
-- **Key** *(optional, multi-select)* — One or more value field paths for compound (object/array) channels. Only shown when the selected channels have multiple keys. Leave empty to include all keys.
-- **Time Field** — Choose between `TIME` (spacecraft time) or `ERT` (Earth Received Time)
-- **Time Override** *(optional)* — Override the dashboard time range with absolute from/to timestamps
+| Field           | Type                   | Description                                                                                                                               |
+| --------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Channel**     | multi-select, required | One or more `component.channel` pairs. Each unique combination produces its own data frame.                                               |
+| **Aggregation** | select                 | Function applied per time bucket: `Average`, `Min`, `Max`, `Count`, `First`, `Last`, `Sum`, `Derivative`, `Raw (none)`.                   |
+| **Source**      | multi-select, optional | FSW source identifier. Leave empty to include all sources.                                                                                |
+| **Keys**        | multi-select, optional | Sub-field paths for compound (object/array) channels. Appears per-channel only when multiple keys exist. Leave empty to include all keys. |
 
-Telemetry data is automatically bucketed using TimescaleDB's `time_bucket()` at the query interval and aggregated with `AVG` (numeric) or `MAX` (string).
+<br>
 
-#### Events
+#### Builder: Events
 
-Query event log entries. Fields returned include timestamp, component, event name, severity, message, source, and arguments.
+Select **Events** in the bottom-right toggle. Returns event log entries with fields: timestamp, component, name, severity, message, source, args.
 
-- **Source** *(optional, multi-select)* — Filter events by one or more FSW source identifiers. Leave empty to include all sources.
-- **Time Field** — `TIME` or `ERT`
-- **Time Override** *(optional)* — Absolute from/to time range
+| Field      | Type                   | Description                                                |
+| ---------- | ---------------------- | ---------------------------------------------------------- |
+| **Source** | multi-select, optional | FSW source identifier. Leave empty to include all sources. |
 
-Severity levels: `DIAGNOSTIC`, `ACTIVITY_LOW`, `ACTIVITY_HIGH`, `WARNING_LOW`, `WARNING_HIGH`, `COMMAND`, `FATAL`.
+<br>
 
-### 4. Template variables
+#### Builder: Shared options
 
-The query editor supports Grafana template variables in the **Component**, **Channel**, **Source**, and **Key** fields, enabling dynamic, reusable dashboards.
+Available for both query types:
+
+| Field                  | Description                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Time Field**         | `Receive Time` (ERT) or `On-board Time` (spacecraft clock)                                             |
+| **From / To Override** | *(Advanced, collapsible)* Pin the query to an absolute time range, ignoring the dashboard time picker. |
+
+<br>
+
+#### Code Mode
+
+Raw SQL editor. Switching from Builder → Code pre-populates the editor with the generated SQL. Switching back to Builder will warn if you have made manual edits.
+
 
 ## License
 

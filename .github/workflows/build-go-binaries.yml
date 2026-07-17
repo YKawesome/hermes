@@ -9,6 +9,8 @@ on:
       - 'docs/**'
       - 'README.md'
       - 'zensical.toml'
+      - 'grafana-datasource-plugin/**'
+      - '.github/workflows/grafana-*.yml'
 
 jobs:
   test:

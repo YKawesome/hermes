@@ -13,8 +13,13 @@ function runCommand(dir: string, name: string, ...args: string[]) {
   }));
 }
 
-function startCommand(dir: string, name: string, ...args: string[]) {
-  return spawn(name, args, { cwd: dir, stdio: 'inherit' });
+function startCommand(dir: string, name: string, ...args: string[]): () => Promise<void> {
+  const backend = spawn(name, args, { cwd: dir, stdio: 'inherit' })
+    .on('error', (err) => console.error(err));
+  return () => new Promise<void>(resolve => {
+    backend.kill();
+    backend.once('exit', resolve);
+  });
 }
 
 function waitPort(target: string, retries = 10, timeout = 500) {
@@ -62,19 +67,24 @@ test('"Save & test" should be successful when configuration is valid', async ({
 }) => {
   const ds = await readProvisionedDataSource<MyDataSourceOptions, MySecureJsonData>({ fileName: 'datasources.yml' });
 
+  // Bind to 0.0.0.0 in CI so docker can connect to it
+  const bindHost = process.env.CI ? '0.0.0.0' : 'localhost';
   await runCommand('..', 'make', 'out/backend').catch((err) => console.error(err));
-  const backend = startCommand('..', './out/backend', '--bind-type', 'tcp', '--bind', 'localhost:6880').on('error', (err) => console.error(err));
+  const backendKill = startCommand('..', './out/backend', '--bind-type', 'tcp', '--bind', `${bindHost}:6880`);
   await waitPort('localhost:6880').catch((err) => console.error(err));
 
-  const configPage = await createDataSourceConfigPage({ type: ds.type });
-  await page.getByRole('textbox', { name: 'Host' }).fill(ds.jsonData.host ?? '');
-  await page.getByRole('textbox', { name: 'User' }).fill(ds.jsonData.user ?? '');
-  await page.locator('#config-editor-password').fill(ds.secureJsonData?.password ?? '');
-  await page.getByRole('textbox', { name: 'Database' }).fill(ds.jsonData.database ?? '');
-  await page.getByRole('textbox', { name: 'Hermes' }).fill(ds.jsonData.hermes ?? '');
-  await expect(configPage.saveAndTest()).not.toBeOK();
-  await expect(configPage).toHaveAlert('error', { hasText: 'Status of connection to Hermes is unknown, no dictionaries are loaded or registered yet.' });
-  backend.kill();
+  try {
+    const configPage = await createDataSourceConfigPage({ type: ds.type });
+    await page.getByRole('textbox', { name: 'Host' }).fill(ds.jsonData.host ?? '');
+    await page.getByRole('textbox', { name: 'User' }).fill(ds.jsonData.user ?? '');
+    await page.locator('#config-editor-password').fill(ds.secureJsonData?.password ?? '');
+    await page.getByRole('textbox', { name: 'Database' }).fill(ds.jsonData.database ?? '');
+    await page.getByRole('textbox', { name: 'Hermes' }).fill(ds.jsonData.hermes ?? '');
+    await expect(configPage.saveAndTest()).not.toBeOK();
+    await expect(configPage).toHaveAlert('error', { hasText: 'Status of connection to Hermes is unknown, no dictionaries are loaded or registered yet.' });
+  } finally {
+    await backendKill();
+  }
 });
 
 test('"Save & test" should fail when configuration is invalid', async ({
