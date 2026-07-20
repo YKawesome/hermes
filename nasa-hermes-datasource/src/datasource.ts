@@ -1,16 +1,12 @@
-import { CustomVariableSupport, DataQueryRequest, DataSourceInstanceSettings, CoreApp, MetricFindValue, ScopedVars } from '@grafana/data';
+import { DataQueryRequest, DataSourceInstanceSettings, CoreApp, ScopedVars } from '@grafana/data';
 import { DataSourceWithBackend, getTemplateSrv } from '@grafana/runtime';
-import { DataQuery } from '@grafana/schema';
-import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { MyQuery, MyDataSourceOptions, DEFAULT_QUERY, ChannelRef, KeyRef, withDefaults } from './types';
 import { buildQuery } from 'query';
-import { VariableQueryEditor } from './components/VariableQueryEditor';
 
 export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptions> {
   constructor(instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
     super(instanceSettings);
-    this.variables = new HermesVariableSupport(this);
   }
 
   query(request: DataQueryRequest<MyQuery>) {
@@ -88,48 +84,4 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     return this.getResource('events/sources');
   }
 
-}
-
-export interface VariableQuery extends DataQuery {
-  queryType: string;
-}
-
-export class HermesVariableSupport extends CustomVariableSupport<DataSource, VariableQuery> {
-  private datasource: DataSource;
-
-  constructor(datasource: DataSource) {
-    super();
-    this.datasource = datasource;
-  }
-
-  editor = VariableQueryEditor;
-
-  query(request: DataQueryRequest<VariableQuery>): Observable<{ data: MetricFindValue[] }> {
-    const queryType = request.targets[0]?.queryType ?? 'channels';
-    return new Observable((subscriber) => {
-      this.execute(queryType).then((data) => {
-        subscriber.next({ data });
-        subscriber.complete();
-      }).catch((err) => subscriber.error(err));
-    });
-  }
-
-  private async execute(queryType: string): Promise<MetricFindValue[]> {
-    switch (queryType) {
-      case 'components': {
-        const chs = await this.datasource.getChannels();
-        return [...new Set(chs.map(c => c.component))].map(v => ({ text: v }));
-      }
-      case 'channels': {
-        const chs = await this.datasource.getChannels();
-        return chs.map(c => ({ text: `${c.component}/${c.name}`, value: c.name }));
-      }
-      case 'sources':
-        return (await this.datasource.getSources()).map(v => ({ text: v }));
-      case 'event_sources':
-        return (await this.datasource.getEventSources()).map(v => ({ text: v }));
-      default:
-        return [];
-    }
-  }
 }
