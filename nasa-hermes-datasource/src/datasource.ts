@@ -1,4 +1,4 @@
-import { DataQueryRequest, DataSourceInstanceSettings, CoreApp, ScopedVars } from '@grafana/data';
+import { DataQueryRequest, DataSourceInstanceSettings, CoreApp, MetricFindValue, ScopedVars } from '@grafana/data';
 import { DataSourceWithBackend, getTemplateSrv } from '@grafana/runtime';
 import { map } from 'rxjs/operators';
 import { MyQuery, MyDataSourceOptions, DEFAULT_QUERY, ChannelRef, KeyRef, withDefaults } from './types';
@@ -82,5 +82,24 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
 
   async getEventSources(): Promise<string[]> {
     return this.getResource('events/sources');
+  }
+
+  async metricFindQuery(query: string): Promise<MetricFindValue[]> {
+    switch (query) {
+      case 'components': {
+        const chs = await this.getChannels();
+        return [...new Set(chs.map(c => c.component))].map(v => ({ text: v }));
+      }
+      case 'channels': {
+        const chs = await this.getChannels();
+        return chs.map(c => ({ text: `${c.component}/${c.name}`, value: c.name }));
+      }
+      case 'sources':
+        return (await this.getSources()).map(v => ({ text: v }));
+      case 'event_sources':
+        return (await this.getEventSources()).map(v => ({ text: v }));
+      default:
+        return [];
+    }
   }
 }
