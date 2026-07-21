@@ -78,8 +78,13 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
   }
 
   async getKeys(channels: ChannelRef[]): Promise<KeyRef[]> {
-    const components = [...new Set(channels.map(ch => ch.component))];
-    const names = channels.map(ch => ch.name);
+    const templateSrv = getTemplateSrv();
+    const expanded = channels.map((ch) => ({
+      component: templateSrv.replace(ch.component),
+      name: templateSrv.replace(ch.name),
+    }));
+    const components = [...new Set(expanded.map((ch) => ch.component))];
+    const names = expanded.map((ch) => ch.name);
     return this.getResource('telemetry/keys', { components, channels: names });
   }
 
