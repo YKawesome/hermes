@@ -105,9 +105,22 @@ export function TelemetryFields({ query, onChange, onRunQuery, datasource }: Tel
   const getChannelOptionsWithVariables = async (inputValue: string): Promise<Array<ComboboxOption<string>>> => {
     const hasVariable = inputValue.includes('$');
 
-    // don't display options when variable is detected
+    // show autcomplete hints when typing a template variable
     if (hasVariable) {
-      return [];
+      const partialMatch = inputValue.match(/\$\w*$/);
+      if (!partialMatch) {
+        return [];
+      }
+
+      const partial = partialMatch[0];
+      const prefix = inputValue.slice(0, partialMatch.index);
+      const variableNames = getTemplateSrv().getVariables().map((v) => `$${v.name}`);
+
+      return variableNames
+        .filter((name) => name.toLowerCase().startsWith(partial.toLowerCase()))
+        .map((name) => `${prefix}${name}`)
+        .filter((suggestion) => suggestion !== inputValue)  // don't show the exact suggestion if it already exists (otherwise custom value option won't show)
+        .map((suggestion) => ({ label: suggestion, value: suggestion, infoOption: true, icon: 'code-branch' as const }));
     }
 
     return channelOptions.filter(opt =>
