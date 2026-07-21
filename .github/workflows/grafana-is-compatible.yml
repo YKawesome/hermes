@@ -2,7 +2,7 @@ name: Grafana Latest Grafana API compatibility check
 on:
   pull_request:
     paths:
-      - 'nasa-hermes-datasource/**'
+      - 'grafana-datasource-plugin/**'
 
 jobs:
   compatibilitycheck:
@@ -11,7 +11,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: ./nasa-hermes-datasource
+        working-directory: ./grafana-datasource-plugin
     steps:
       - uses: actions/checkout@v6
         with:
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: ./nasa-hermes-datasource/package-lock.json
+          cache-dependency-path: ./grafana-datasource-plugin/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -34,7 +34,7 @@ jobs:
         id: find-module-ts
         run: |
           MODULETS="$(find ./src -type f \( -name "module.ts" -o -name "module.tsx" \))"
-          echo "modulets=./nasa-hermes-datasource/${MODULETS#./}" >> $GITHUB_OUTPUT
+          echo "modulets=./grafana-datasource-plugin/${MODULETS#./}" >> $GITHUB_OUTPUT
 
       - name: Compatibility check
         uses: grafana/plugin-actions/is-compatible@is-compatible/v1.0.2
