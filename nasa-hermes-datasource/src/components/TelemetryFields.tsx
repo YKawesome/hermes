@@ -223,6 +223,15 @@ export function TelemetryFields({ query, onChange, onRunQuery, datasource }: Tel
     loadSources();
   }, [datasource]);
 
+  // Update keys when vars change
+  const templateSrv = getTemplateSrv();
+  const resolvedChannelsKey = JSON.stringify(
+    (query.channels ?? []).map((ch) => ({
+      component: templateSrv.replace(ch.component),
+      name: templateSrv.replace(ch.name),
+    }))
+  );
+
   useEffect(() => {
     if (!query.channels || !query.channels.length) {
       setTimeout(() => setKeysByChannel({}), 0);
@@ -237,7 +246,7 @@ export function TelemetryFields({ query, onChange, onRunQuery, datasource }: Tel
         .finally(() => setKeyLoading(false));
     }
     loadKeys();
-  }, [datasource, query.channels]);
+  }, [datasource, query.channels, resolvedChannelsKey]);
 
   useEffect(() => {
     const currentKeys = query.keys ?? [];
