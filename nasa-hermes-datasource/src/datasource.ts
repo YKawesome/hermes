@@ -10,10 +10,13 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
   }
 
   query(request: DataQueryRequest<MyQuery>) {
-    // Build raw SQL for each target if not already provided
     request.targets.forEach((target) => {
       const filled = withDefaults(target);
       Object.assign(target, filled);
+
+      const withVars = this.applyTemplateVariables(target, request.scopedVars);
+      Object.assign(target, withVars);
+
       if (!target.rawSql) {
         target.rawSql = buildQuery(target, request);
       }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Combobox, ComboboxOption, InlineField, MultiCombobox } from '@grafana/ui';
+import { getTemplateSrv } from '@grafana/runtime';
 import { DataSource } from '../datasource';
 import { Aggregation, ChannelRef, KeyRef, MyQuery } from '../types';
 
@@ -77,8 +78,17 @@ function toChannelOptions(entries: ChannelRef[]): Array<ComboboxOption<string>> 
   }));
 }
 
-function channelValues(channels: ChannelRef[]): string[] {
-  return channels.map(channelToKey);
+function channelValuesOrOptions(channels: ChannelRef[]): Array<ComboboxOption<string>> | string[] {
+  const hasVariables = channels.some(ch => ch.component.includes('$') || ch.name.includes('$'));
+
+  if (!hasVariables) {
+    return channels.map(channelToKey);
+  }
+
+  return channels.map(ch => ({
+    label: `${ch.component}.${ch.name}`,
+    value: channelToKey(ch),
+  }));
 }
 
 export function TelemetryFields({ query, onChange, onRunQuery, datasource }: TelemetryFieldsProps) {
@@ -90,10 +100,66 @@ export function TelemetryFields({ query, onChange, onRunQuery, datasource }: Tel
   const [sourceLoading, setSourceLoading] = useState(false);
   const [keyLoading, setKeyLoading] = useState(false);
 
+  // --- Helpers ---
+
+  const getChannelOptionsWithVariables = async (inputValue: string): Promise<Array<ComboboxOption<string>>> => {
+    const hasVariable = inputValue.includes('$');
+
+    // don't display options when variable is detected
+    if (hasVariable) {
+      return [];
+    }
+
+    return channelOptions.filter(opt =>
+      opt.label?.toLowerCase().includes(inputValue.toLowerCase())
+    );
+  };
+
   // --- Handlers ---
 
   const onChannelChange = (options: Array<ComboboxOption<string>>) => {
-    const channels = options.map(({ value }) => keyToChannel(value));
+    const templateSrv = getTemplateSrv();
+
+    const channels = options
+      .map(({ value, label }) => {
+        const valueStr = typeof value === 'string' ? value : String(value);
+
+        if (valueStr.includes('$') || label?.includes('$')) {
+          const input = label || valueStr;
+          const varMatches = input.match(/\$\w+/g) || [];
+
+          // if any variable is not resolved, return null
+          for (const varName of varMatches) {
+            if (templateSrv.replace(varName) === varName) {
+              return null;
+            }
+          }
+
+          const expanded = templateSrv.replace(input);
+          const match = channelOptions.find(opt => opt.label === expanded);
+
+          if (!match) {
+            return { component: input, name: '' };
+          }
+
+          const matchedChannel = keyToChannel(match.value);
+
+          let resultComponent = matchedChannel.component;
+          let resultName = matchedChannel.name;
+
+          for (const varName of varMatches) {
+            const varValue = templateSrv.replace(varName);
+            resultComponent = resultComponent.replace(varValue, varName);
+            resultName = resultName.replace(varValue, varName);
+          }
+
+          return { component: resultComponent, name: resultName };
+        }
+
+        return keyToChannel(valueStr);
+      })
+      .filter((ch): ch is ChannelRef => ch !== null);
+
     const updated: MyQuery = { ...query, channels, keys: [], sources: [] };
     onChange(updated);
     if (channels.length) {
@@ -200,12 +266,14 @@ export function TelemetryFields({ query, onChange, onRunQuery, datasource }: Tel
         <MultiCombobox
           id="query-editor-channel"
           data-testid="query-editor-channel"
-          options={channelOptions}
-          value={channelValues(query.channels ?? [])}
+          options={getChannelOptionsWithVariables}
+          value={channelValuesOrOptions(query.channels ?? [])}
           onChange={onChannelChange}
           loading={channelLoading}
           placeholder="Select channel"
           prefixIcon="channel-add"
+          createCustomValue={true}
+          customValueDescription="Use template variable"
         />
       </InlineField>
       <InlineField label="Aggregation" labelWidth={16} tooltip="Data aggregation method used when the data interval is smaller than the requested interval. The requested interval can be found in the query options at the top of this query." grow shrink>
