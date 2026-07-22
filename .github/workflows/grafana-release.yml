@@ -28,8 +28,27 @@ jobs:
         with:
           go-version-file: ./grafana-datasource-plugin/go.mod
 
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            SEMVER="${VERSION#v}"
+          else
+            SEMVER="0.0.0-dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "semver=$SEMVER" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Set plugin version
+        run: |
+          jq --arg version "${{ steps.version.outputs.semver }}" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+        shell: bash
+
       - name: Build frontend
         run: npm run build
 
